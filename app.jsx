@@ -630,12 +630,6 @@ function RewardsScreen() {
       tag: null,
     },
     {
-      ic: 'ball',
-      t: 'Renta de raqueta',
-      s: 'Acceso a raquetas Bullpadel cuando lo necesites.',
-      tag: null,
-    },
-    {
       ic: 'gift',
       t: 'Sorpresas en tu cumpleaños',
       s: 'El club celebra contigo en el mes de tu cumpleaños.',
