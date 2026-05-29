@@ -259,9 +259,6 @@ function Welcome({ onStart, onResume, hasMember }) {
         {hasMember && (
           <button className="btn btn-ghost" onClick={onResume}>Ver mi tarjeta</button>
         )}
-        <div style={{textAlign:'center', fontSize: 11.5, color:'rgba(14,29,87,0.5)', marginTop: 4}}>
-          ¿Ya eres miembro? <span style={{color:'var(--navy)', fontWeight:600, cursor:'pointer'}} onClick={hasMember ? onResume : onStart}>Inicia sesión</span>
-        </div>
       </div>
 
       <footer className="landing-footer">
