@@ -106,56 +106,68 @@ function Login({ onAuth }) {
 // Scanner — uses html5-qrcode (camera)
 // ─────────────────────────────────────────────────────────────
 function Scanner({ active, onScan }) {
-  const containerId = 'qr-reader-region';
-  const scannerRef = useRef(null);
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const rafRef = useRef(null);
+  const streamRef = useRef(null);
   const lastScanRef = useRef({ text: '', ts: 0 });
   const [error, setError] = useState(null);
 
   useEffect(() => {
     if (!active) return;
-    if (!window.Html5Qrcode) {
-      setError('Librería de scanner no cargó. Recarga la página.');
+    if (!window.jsQR) {
+      setError('Librería QR no cargó. Recarga la página.');
       return;
     }
     let cancelled = false;
-    const html5 = new window.Html5Qrcode(containerId, { verbose: false });
-    scannerRef.current = html5;
-    const config = {
-      fps: 12,
-      qrbox: (w, h) => {
-        const min = Math.min(w, h);
-        const size = Math.floor(min * 0.72);
-        return { width: size, height: size };
-      },
-      aspectRatio: 1.0,
-    };
-    html5.start(
-      { facingMode: 'environment' },
-      config,
-      (decoded) => {
-        const now = Date.now();
-        // Debounce identical scans within 2.5s
-        if (decoded === lastScanRef.current.text && (now - lastScanRef.current.ts) < 2500) return;
-        lastScanRef.current = { text: decoded, ts: now };
-        onScan(decoded);
-      },
-      () => {} // ignore parse errors per-frame
-    ).catch(err => {
-      if (!cancelled) setError(String(err && err.message || err));
+
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+    }).then(stream => {
+      if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
+      streamRef.current = stream;
+      const video = videoRef.current;
+      if (!video) return;
+      video.srcObject = stream;
+      video.setAttribute('playsinline', true);
+      video.play();
+
+      function tick() {
+        if (cancelled || !videoRef.current || !canvasRef.current) return;
+        const v = videoRef.current;
+        if (v.readyState !== v.HAVE_ENOUGH_DATA) { rafRef.current = requestAnimationFrame(tick); return; }
+        const canvas = canvasRef.current;
+        canvas.width = v.videoWidth;
+        canvas.height = v.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = window.jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
+        if (code) {
+          const now = Date.now();
+          if (code.data !== lastScanRef.current.text || (now - lastScanRef.current.ts) > 2500) {
+            lastScanRef.current = { text: code.data, ts: now };
+            onScan(code.data);
+          }
+        }
+        rafRef.current = requestAnimationFrame(tick);
+      }
+      rafRef.current = requestAnimationFrame(tick);
+    }).catch(() => {
+      if (!cancelled) setError('No se pudo acceder a la cámara. Permite el acceso en Configuración → Safari → Cámara.');
     });
 
     return () => {
       cancelled = true;
-      if (scannerRef.current) {
-        scannerRef.current.stop().then(() => scannerRef.current.clear()).catch(() => {});
-        scannerRef.current = null;
-      }
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
     };
   }, [active]);
 
   return (
     <div className="scanner-wrap">
-      <div id={containerId} className="scanner-region" />
+      <video ref={videoRef} className="scanner-video" playsInline muted />
+      <canvas ref={canvasRef} style={{ display: 'none' }} />
       <div className="scanner-overlay">
         <div className="scanner-frame">
           <span className="corner tl"></span>
