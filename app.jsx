@@ -263,6 +263,23 @@ function Welcome({ onStart, onResume, hasMember }) {
           ¿Ya eres miembro? <span style={{color:'var(--navy)', fontWeight:600, cursor:'pointer'}} onClick={hasMember ? onResume : onStart}>Inicia sesión</span>
         </div>
       </div>
+
+      <footer className="landing-footer">
+        <a
+          href="https://www.instagram.com/padel_park_granjardin?igsh=NGpvMjRsbHZ2eTRl&utm_source=qr"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="footer-ig"
+        >
+          <svg viewBox="0 0 24 24" fill="none" width="18" height="18">
+            <rect x="2" y="2" width="20" height="20" rx="5" stroke="currentColor" strokeWidth="1.7"/>
+            <circle cx="12" cy="12" r="4.5" stroke="currentColor" strokeWidth="1.7"/>
+            <circle cx="17.5" cy="6.5" r="1" fill="currentColor"/>
+          </svg>
+          @padel_park_granjardin
+        </a>
+        <div className="footer-copy">© {new Date().getFullYear()} Padel Park Gran Jardín · León, Gto</div>
+      </footer>
     </div>
   );
 }
