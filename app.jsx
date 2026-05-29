@@ -246,8 +246,8 @@ function Welcome({ onStart, onResume, hasMember }) {
         </div>
         <div className="perk">
           <div className="icon"><Ic.trophy /></div>
-          <div className="label">4 niveles</div>
-          <div className="sub">De Bronze a Legend. Sube y suma beneficios.</div>
+          <div className="label">Visita gratis</div>
+          <div className="sub">Cada 6 visitas, la siguiente es completamente gratis.</div>
         </div>
       </div>
 
@@ -609,24 +609,51 @@ function CardScreen({ member, cardStyle, onOpenQr }) {
 // ──────────────────────────────────────────────────────────────
 function RewardsScreen() {
   const rewards = [
-    { ic: 'gift',   t: 'Bienvenida al club',         s: 'Acceso al programa y comunidad de socios Padel Park.' },
-    { ic: 'bolt',   t: 'Reservas prioritarias',      s: 'Apartado anticipado de canchas para socios activos.' },
-    { ic: 'trophy', t: 'Torneos y clínicas',         s: 'Notificación temprana y descuentos en torneos del club.' },
-    { ic: 'ball',   t: 'Renta de raqueta',           s: 'Acceso a raquetas Bullpadel cuando lo necesites.' },
-    { ic: 'gift',   t: 'Sorpresas en tu cumpleaños', s: 'El club celebra contigo en el mes de tu cumpleaños.' },
-    { ic: 'trophy', t: 'Recompensas por constancia', s: 'Beneficios especiales para los socios más constantes.' },
+    {
+      ic: 'bolt',
+      t: 'Precio Silver cada 3 visitas',
+      s: 'En tu 3ª visita acumulada disfrutas tarifa preferencial Silver.',
+      tag: 'VISITA 3',
+    },
+    {
+      ic: 'gift',
+      t: 'Visita gratis cada 6 visitas',
+      s: 'En tu 6ª visita acumulada la cancha es completamente gratis.',
+      tag: 'VISITA 6',
+    },
+    {
+      ic: 'trophy',
+      t: 'Torneos y clínicas',
+      s: 'Notificación temprana y descuentos en torneos del club.',
+      tag: null,
+    },
+    {
+      ic: 'ball',
+      t: 'Renta de raqueta',
+      s: 'Acceso a raquetas Bullpadel cuando lo necesites.',
+      tag: null,
+    },
+    {
+      ic: 'gift',
+      t: 'Sorpresas en tu cumpleaños',
+      s: 'El club celebra contigo en el mes de tu cumpleaños.',
+      tag: null,
+    },
   ];
   return (
     <div className="scroll fade-in">
       <TopBar right="BENEFICIOS" />
       <div className="rewards-screen">
         <h2>Beneficios del programa</h2>
-        <div className="sub">Lo que recibes como socio de Padel Park Gran Jardín.</div>
+        <div className="sub">Acumula visitas y desbloquea recompensas en Padel Park Gran Jardín.</div>
         {rewards.map((r, i) => (
           <div key={i} className="benefit-card">
             <div className="bc-ic">{Ic[r.ic]({ style: { width: 22, height: 22 } })}</div>
             <div className="bc-body">
-              <div className="bc-ttl">{r.t}</div>
+              <div className="bc-ttl">
+                {r.t}
+                {r.tag && <span className="bc-tag">{r.tag}</span>}
+              </div>
               <div className="bc-sub">{r.s}</div>
             </div>
           </div>

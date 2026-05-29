@@ -264,7 +264,7 @@ function ScannerScreen() {
     <div className="scanner-screen">
       <div className="court-bar">
         <span className="court-lbl">CANCHA</span>
-        {['01','02','03','04'].map(c => (
+        {['01','02','03'].map(c => (
           <button
             key={c}
             className={`court-pill ${court === c ? 'active' : ''}`}
