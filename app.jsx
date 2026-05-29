@@ -574,9 +574,11 @@ function CardScreen({ member, cardStyle, onOpenQr }) {
           </button>
         </div>
 
-        <div className="hint-note">
-          <Ic.download style={{width:14, height:14, opacity:0.5}} />
-          Guarda tu tarjeta en Fotos para tenerla siempre a la mano.
+        <div className="notice-box">
+          <Ic.shield style={{width:18, height:18, flexShrink:0}} />
+          <div>
+            <strong>Tu tarjeta no se guarda en la nube.</strong> Descarga tu pase y guárdalo en Fotos — lo necesitarás presentar en recepción cada vez que visites el club.
+          </div>
         </div>
 
         <div className="qr-section">
