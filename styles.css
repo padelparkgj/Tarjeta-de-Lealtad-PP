@@ -531,6 +531,19 @@ input, textarea, select { font-family: inherit; }
   font-weight: 600;
   color: var(--navy);
   margin-bottom: 3px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.bc-tag {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  background: var(--navy);
+  color: var(--lime);
+  padding: 2px 7px;
+  border-radius: 999px;
 }
 .benefit-card .bc-sub {
   font-size: 12.5px;
