@@ -2,7 +2,7 @@
   "name": "Padel Park Gran Jardín",
   "short_name": "Padel Park",
   "description": "Tarjeta de Lealtad — Padel Park Gran Jardín, León, Gto",
-  "start_url": "/Landing%20Page.html",
+  "start_url": "./Landing%20Page.html",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#0e1d57",

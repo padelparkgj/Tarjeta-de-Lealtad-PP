@@ -54,5 +54,50 @@
         .order('visited_at', { ascending: false })
         .limit(200);
     },
+
+    // ── Announcements table ───────────────────────────────────
+    getAnnouncements() {
+      return sb.from('announcements')
+        .select('*')
+        .eq('active', true)
+        .or('expires_at.is.null,expires_at.gt.' + new Date().toISOString())
+        .order('created_at', { ascending: false });
+    },
+    createAnnouncement(data) {
+      return sb.from('announcements').insert(data);
+    },
+    deleteAnnouncement(id) {
+      return sb.from('announcements').delete().eq('id', id);
+    },
+    async uploadAnnouncementImage(file) {
+      const ext  = file.name.split('.').pop();
+      const path = `ann-${Date.now()}.${ext}`;
+      const { error } = await sb.storage.from('announcements').upload(path, file, { upsert: true });
+      if (error) throw error;
+      const { data } = sb.storage.from('announcements').getPublicUrl(path);
+      return data.publicUrl;
+    },
+
+    // ── Signups table ─────────────────────────────────────────
+    signUpForEvent(announcementId, memberId, memberName) {
+      return sb.from('signups').upsert({
+        announcement_id: announcementId,
+        member_id:       memberId,
+        member_name:     memberName || '',
+      });
+    },
+    cancelSignup(announcementId, memberId) {
+      return sb.from('signups').delete()
+        .eq('announcement_id', announcementId)
+        .eq('member_id', memberId);
+    },
+    getMemberSignups(memberId) {
+      return sb.from('signups').select('announcement_id').eq('member_id', memberId);
+    },
+    getEventSignups(announcementId) {
+      return sb.from('signups').select('*')
+        .eq('announcement_id', announcementId)
+        .order('signed_up_at');
+    },
   };
 })();

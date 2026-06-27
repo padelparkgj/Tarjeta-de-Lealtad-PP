@@ -588,9 +588,20 @@ function QrModal({ member, onClose }) {
     generateQrSvg(`PPGJ|${member.id}|${member.name}`, { dark: '#0e1d57', light: '#ffffff', size: 280 }),
   [member.id, member.name]);
 
+  const tapRef = useRef(null);
+  function handleTap() {
+    if (tapRef.current) {
+      clearTimeout(tapRef.current);
+      tapRef.current = null;
+      onClose();
+    } else {
+      tapRef.current = setTimeout(() => { tapRef.current = null; }, 350);
+    }
+  }
+
   return (
-    <div className="qr-modal">
-      <button className="close" onClick={onClose}><Ic.close /></button>
+    <div className="qr-modal" onDoubleClick={onClose} onClick={handleTap}>
+      <button className="close" onClick={e => { e.stopPropagation(); onClose(); }}><Ic.close /></button>
       <div className="qr-box">
         <div dangerouslySetInnerHTML={{__html: qrSvg}} />
       </div>
@@ -674,10 +685,6 @@ function CardScreen({ member, cardStyle, onOpenQr }) {
     generateQrSvg(`PPGJ|${member.id}|${member.name}`, { dark: '#0e1d57', light: '#ffffff', size: 360 }),
   [member.id, member.name]);
 
-  const qrSvgThumb = useMemo(() =>
-    generateQrSvg(`PPGJ|${member.id}|${member.name}`, { dark: '#0e1d57', light: '#ffffff', size: 120 }),
-  [member.id, member.name]);
-
   const walletRef = useRef(null);
   const [downloading, setDownloading] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
@@ -748,6 +755,13 @@ function CardScreen({ member, cardStyle, onOpenQr }) {
           </button>
         </div>
 
+        <div className="notice-box">
+          <Ic.shield style={{width:18, height:18, flexShrink:0}} />
+          <div>
+            <strong>Guardada en la nube.</strong> Accede desde cualquier dispositivo con tu correo y contraseña.
+          </div>
+        </div>
+
         {/* ── Visits & promotions ── */}
         {visitsReady && (
           <div className="visits-block">
@@ -792,29 +806,6 @@ function CardScreen({ member, cardStyle, onOpenQr }) {
             )}
           </div>
         )}
-
-        <div className="notice-box">
-          <Ic.shield style={{width:18, height:18, flexShrink:0}} />
-          <div>
-            <strong>Tu tarjeta está guardada en la nube.</strong> Puedes acceder desde cualquier dispositivo con tu correo y contraseña.
-          </div>
-        </div>
-
-        <div className="qr-section">
-          <div className="qr-thumb" dangerouslySetInnerHTML={{__html: qrSvgThumb}} />
-          <div className="qr-meta">
-            <div className="ttl">Tu QR personal</div>
-            <div className="sub">Muéstralo en recepción para registrar tu visita.</div>
-          </div>
-          <button onClick={onOpenQr}>ABRIR</button>
-        </div>
-
-        <div className="benefits-preview">
-          <div className="bp-row">
-            <Ic.gift style={{width:18, height:18}} />
-            <span>Tu tarjeta abre los beneficios del programa de lealtad.</span>
-          </div>
-        </div>
       </div>
 
       {/* Off-screen, full-quality wallet card used for the PNG export */}
@@ -912,6 +903,123 @@ function ProfileScreen({ member, onReset }) {
         </div>
         <button className="btn btn-ghost" style={{width:'100%', marginTop:14}} onClick={onReset}>Cerrar sesión</button>
       </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// Announcement banner — shows active club announcements
+// ──────────────────────────────────────────────────────────────
+const ANN_COLORS = {
+  torneo: { bg: 'rgba(14,29,87,0.97)',    border: 'rgba(184,242,74,0.3)',  badge: '#b8f24a', badgeText: '#0e1d57' },
+  precio: { bg: 'rgba(10,40,60,0.97)',    border: 'rgba(122,220,240,0.3)', badge: '#7adcf0', badgeText: '#00263a' },
+  info:   { bg: 'rgba(40,20,10,0.96)',    border: 'rgba(255,180,100,0.3)', badge: '#ffb464', badgeText: '#3a1a00' },
+};
+const ANN_LABELS = { torneo: 'TORNEO', precio: 'PRECIO ESPECIAL', info: 'AVISO' };
+
+function useCountdown(eventDate) {
+  const calc = () => {
+    if (!eventDate) return null;
+    const diff = new Date(eventDate) - new Date();
+    if (diff <= 0) return null;
+    return {
+      d: Math.floor(diff / 86400000),
+      h: Math.floor((diff % 86400000) / 3600000),
+      m: Math.floor((diff % 3600000) / 60000),
+      s: Math.floor((diff % 60000) / 1000),
+    };
+  };
+  const [rem, setRem] = useState(calc);
+  useEffect(() => {
+    if (!eventDate) return;
+    const t = setInterval(() => setRem(calc()), 1000);
+    return () => clearInterval(t);
+  }, [eventDate]);
+  return rem;
+}
+
+function AnnCard({ ann, member, onDismiss }) {
+  const c   = ANN_COLORS[ann.type] || ANN_COLORS.info;
+  const rem = useCountdown(ann.event_date);
+  const [signedUp, setSignedUp] = useState(false);
+  const [sigBusy,  setSigBusy]  = useState(false);
+
+  useEffect(() => {
+    if (!ann.allow_signup || !member || !window.PPSb) return;
+    window.PPSb.getMemberSignups(member.member_id || member.id).then(({ data }) => {
+      if (data && data.some(s => s.announcement_id === ann.id)) setSignedUp(true);
+    });
+  }, [ann.id]);
+
+  async function toggleSignup() {
+    if (!member || !window.PPSb) return;
+    setSigBusy(true);
+    const mid = member.member_id || member.id;
+    if (signedUp) {
+      await window.PPSb.cancelSignup(ann.id, mid);
+      setSignedUp(false);
+    } else {
+      await window.PPSb.signUpForEvent(ann.id, mid, member.name);
+      setSignedUp(true);
+    }
+    setSigBusy(false);
+  }
+
+  return (
+    <div className="ann-card" style={{ borderColor: c.border }}>
+      {ann.image_url && (
+        <img src={ann.image_url} className="ann-card-img" alt={ann.title} />
+      )}
+      <div className="ann-card-body" style={{ background: c.bg }}>
+        <div className="ann-card-top">
+          <span className="ann-card-badge" style={{ background: c.badge, color: c.badgeText }}>
+            {ANN_LABELS[ann.type] || 'AVISO'}
+          </span>
+          <button className="ann-card-close" onClick={onDismiss}>
+            <Ic.close style={{width:13,height:13}} />
+          </button>
+        </div>
+        <div className="ann-card-title">{ann.title}</div>
+        <div className="ann-card-text">{ann.body}</div>
+
+        {rem && (
+          <div className="ann-countdown">
+            {rem.d > 0 && <div className="ann-cd-unit"><span>{rem.d}</span><em>días</em></div>}
+            <div className="ann-cd-unit"><span>{String(rem.h).padStart(2,'0')}</span><em>hrs</em></div>
+            <div className="ann-cd-unit"><span>{String(rem.m).padStart(2,'0')}</span><em>min</em></div>
+            <div className="ann-cd-unit"><span>{String(rem.s).padStart(2,'0')}</span><em>seg</em></div>
+          </div>
+        )}
+
+        {ann.allow_signup && (
+          <button className={`ann-signup-btn ${signedUp ? 'signed' : ''}`}
+            onClick={toggleSignup} disabled={sigBusy}>
+            {sigBusy ? '…' : signedUp ? '✓ Inscrito — cancelar' : 'Inscribirme →'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AnnouncementBanner({ member }) {
+  const [items,     setItems]     = useState([]);
+  const [dismissed, setDismissed] = useState(new Set());
+
+  useEffect(() => {
+    if (!window.PPSb) return;
+    window.PPSb.getAnnouncements().then(({ data }) => setItems(data || []));
+  }, []);
+
+  const visible = items.filter(a => !dismissed.has(a.id));
+  if (!visible.length) return null;
+
+  return (
+    <div className="ann-banner-stack">
+      {visible.map(a => (
+        <AnnCard key={a.id} ann={a} member={member}
+          onDismiss={() => setDismissed(s => new Set([...s, a.id]))} />
+      ))}
     </div>
   );
 }
@@ -1064,6 +1172,7 @@ function App() {
 
         {screen === 'main' && member && (
           <>
+            <AnnouncementBanner member={member} />
             {tab === 'card'     && <CardScreen member={member} cardStyle={tweaks.cardStyle} onOpenQr={()=>setQrOpen(true)} />}
             {tab === 'rewards'  && <RewardsScreen />}
             {tab === 'profile'  && <ProfileScreen member={member} onReset={handleReset} />}

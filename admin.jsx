@@ -46,6 +46,7 @@ function parseQr(text) {
 // ─────────────────────────────────────────────────────────────
 const Ic = {
   cam:    p => <svg viewBox="0 0 24 24" fill="none" {...p}><path d="M3 8a2 2 0 012-2h2l2-2h6l2 2h2a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/><circle cx="12" cy="13" r="4" stroke="currentColor" strokeWidth="1.6"/></svg>,
+  mega:   p => <svg viewBox="0 0 24 24" fill="none" {...p}><path d="M3 11v2M5 8.5C7.5 10 12 11 18 11v2c-6 0-10.5 1-13 2.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/><path d="M5 8.5V16.5M5 8.5C5 7.7 5.7 7 6.5 7H7l11-3v14L7 15H6.5C5.7 15 5 14.3 5 13.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/><path d="M7 15l1 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>,
   check:  p => <svg viewBox="0 0 24 24" fill="none" {...p}><path d="M5 12l5 5L20 7" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/></svg>,
   x:      p => <svg viewBox="0 0 24 24" fill="none" {...p}><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>,
   cog:    p => <svg viewBox="0 0 24 24" fill="none" {...p}><circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.6"/><path d="M19.4 15a1.7 1.7 0 00.4 1.9l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.9-.4 1.7 1.7 0 00-1 1.5V21a2 2 0 01-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.9.4l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.4-1.9 1.7 1.7 0 00-1.5-1H3a2 2 0 010-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.4-1.9l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.9.4h.1a1.7 1.7 0 001-1.5V3a2 2 0 014 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.9-.4l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.4 1.9v.1a1.7 1.7 0 001.5 1H21a2 2 0 010 4h-.1a1.7 1.7 0 00-1.5 1z" stroke="currentColor" strokeWidth="1.4"/></svg>,
@@ -440,6 +441,254 @@ function LogScreen() {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Announcements screen
+// ─────────────────────────────────────────────────────────────
+const TYPES = [
+  { value: 'torneo',  label: 'Torneo',         color: '#b8f24a' },
+  { value: 'precio',  label: 'Precio especial', color: '#7adcf0' },
+  { value: 'info',    label: 'Aviso general',   color: '#ffb464' },
+];
+
+function AnnSignupsModal({ ann, onClose }) {
+  const [signups, setSignups] = useState([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    window.PPSb.getEventSignups(ann.id).then(({ data }) => {
+      setSignups(data || []);
+      setLoading(false);
+    });
+  }, [ann.id]);
+  return (
+    <div className="ann-modal-overlay" onClick={onClose}>
+      <div className="ann-modal" onClick={e => e.stopPropagation()}>
+        <div className="ann-modal-header">
+          <div>
+            <div className="ann-modal-title">{ann.title}</div>
+            <div className="ann-modal-sub">{signups.length} inscripciones</div>
+          </div>
+          <button className="ann-del" onClick={onClose}><Ic.x style={{width:14,height:14}}/></button>
+        </div>
+        {loading && <div className="empty">Cargando…</div>}
+        {!loading && signups.length === 0 && <div className="empty" style={{padding:16}}>Sin inscripciones todavía.</div>}
+        <div className="ann-signup-list">
+          {signups.map((s, i) => (
+            <div key={s.id} className="ann-signup-row">
+              <div className="ann-signup-num">{i + 1}</div>
+              <div>
+                <div className="ann-signup-name">{s.member_name || s.member_id}</div>
+                <div className="ann-signup-id">{s.member_id} · {new Date(s.signed_up_at).toLocaleDateString('es-MX',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AnnouncementsScreen() {
+  const [list,       setList]       = useState([]);
+  const [signupCounts, setSignupCounts] = useState({});
+  const [loading,    setLoading]    = useState(true);
+  const [busy,       setBusy]       = useState(false);
+  const [uploading,  setUploading]  = useState(false);
+  const [viewSignups, setViewSignups] = useState(null);
+  const [form, setForm] = useState({
+    type: 'torneo', title: '', body: '',
+    image_url: '', event_date: '', expires_at: '', allow_signup: false,
+  });
+  const [imgPreview, setImgPreview] = useState(null);
+  const [err, setErr] = useState(null);
+  const fileRef = useRef(null);
+
+  function load() {
+    if (!window.PPSb) { setLoading(false); return; }
+    window.PPSb.getAnnouncements().then(async ({ data }) => {
+      const items = data || [];
+      setList(items);
+      // load signup counts for items that allow signup
+      const counts = {};
+      await Promise.all(items.filter(a => a.allow_signup).map(async a => {
+        const { data: s } = await window.PPSb.getEventSignups(a.id);
+        counts[a.id] = (s || []).length;
+      }));
+      setSignupCounts(counts);
+      setLoading(false);
+    });
+  }
+  useEffect(load, []);
+
+  function set(k, v) { setForm(f => ({ ...f, [k]: v })); setErr(null); }
+
+  async function handleImagePick(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    setImgPreview(URL.createObjectURL(file));
+    setUploading(true);
+    try {
+      const url = await window.PPSb.uploadAnnouncementImage(file);
+      set('image_url', url);
+    } catch(err) {
+      setErr('Error al subir imagen: ' + err.message);
+      setImgPreview(null);
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function publish(e) {
+    e.preventDefault();
+    if (!form.title.trim() || !form.body.trim()) { setErr('Título y mensaje son requeridos.'); return; }
+    setBusy(true);
+    const payload = {
+      title:        form.title.trim(),
+      body:         form.body.trim(),
+      type:         form.type,
+      image_url:    form.image_url || null,
+      event_date:   form.event_date || null,
+      expires_at:   form.expires_at || null,
+      allow_signup: form.allow_signup,
+      active:       true,
+    };
+    const { error } = await window.PPSb.createAnnouncement(payload);
+    if (error) { setErr('Error al publicar: ' + error.message); setBusy(false); return; }
+    setForm({ type: 'torneo', title: '', body: '', image_url: '', event_date: '', expires_at: '', allow_signup: false });
+    setImgPreview(null);
+    setBusy(false);
+    load();
+  }
+
+  async function remove(id) {
+    await window.PPSb.deleteAnnouncement(id);
+    load();
+  }
+
+  const typeInfo = (t) => TYPES.find(x => x.value === t) || TYPES[2];
+
+  return (
+    <div className="ann-screen">
+      <h2>Avisos a socios</h2>
+      <p className="ann-lead">Los avisos aparecen en la app de todos los socios al instante.</p>
+
+      <div className="ann-form-card">
+        <form onSubmit={publish}>
+          <div className="ann-type-row">
+            {TYPES.map(t => (
+              <button key={t.value} type="button"
+                className={`ann-type-pill ${form.type === t.value ? 'active' : ''}`}
+                style={form.type === t.value ? { background: t.color, borderColor: t.color, color: 'var(--navy)' } : {}}
+                onClick={() => set('type', t.value)}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Image upload */}
+          <div className="ann-img-upload" onClick={() => fileRef.current.click()}>
+            {imgPreview
+              ? <img src={imgPreview} className="ann-img-preview" alt="preview" />
+              : <div className="ann-img-placeholder">
+                  {uploading ? 'Subiendo…' : '＋ Agregar foto (opcional)'}
+                </div>
+            }
+            {imgPreview && !uploading && (
+              <button type="button" className="ann-img-clear"
+                onClick={e => { e.stopPropagation(); setImgPreview(null); set('image_url', ''); }}>
+                <Ic.x style={{width:12,height:12}}/>
+              </button>
+            )}
+          </div>
+          <input ref={fileRef} type="file" accept="image/*" style={{display:'none'}} onChange={handleImagePick} />
+
+          <div className="field">
+            <label>Título</label>
+            <input value={form.title} onChange={e => set('title', e.target.value)}
+              placeholder="Torneo dobles mixtos · 5 julio" />
+          </div>
+          <div className="field">
+            <label>Mensaje</label>
+            <textarea value={form.body} onChange={e => set('body', e.target.value)}
+              placeholder="Inscríbete antes del viernes. Cupo limitado a 16 parejas." rows={3} />
+          </div>
+          <div className="field-row">
+            <div className="field">
+              <label>Fecha del evento <span style={{opacity:.5,fontWeight:400}}>(cuenta regresiva)</span></label>
+              <input type="datetime-local" value={form.event_date} onChange={e => set('event_date', e.target.value)} />
+            </div>
+            <div className="field">
+              <label>Mostrar hasta</label>
+              <input type="date" value={form.expires_at} onChange={e => set('expires_at', e.target.value)} />
+            </div>
+          </div>
+
+          <label className="ann-toggle">
+            <input type="checkbox" checked={form.allow_signup}
+              onChange={e => set('allow_signup', e.target.checked)} />
+            <span>Activar botón de inscripción para socios</span>
+          </label>
+
+          {err && <p className="field-error">{err}</p>}
+          <button type="submit" className="btn btn-primary" style={{width:'100%',marginTop:14}}
+            disabled={busy || uploading || !window.PPSb}>
+            {busy ? 'Publicando…' : 'Publicar aviso'}
+            {!busy && <Ic.mega style={{width:15,height:15}}/>}
+          </button>
+          {!window.PPSb && <p style={{fontSize:12,color:'#c97',marginTop:8,textAlign:'center'}}>Sin conexión a Supabase</p>}
+        </form>
+      </div>
+
+      <h3 style={{margin:'22px 0 10px', fontFamily:"'Bebas Neue',sans-serif", fontSize:18, letterSpacing:'.06em', color:'var(--navy)'}}>
+        Activos ({list.length})
+      </h3>
+
+      {loading && <div className="empty">Cargando…</div>}
+      {!loading && list.length === 0 && (
+        <div className="empty" style={{padding:'24px 0'}}>
+          <Ic.mega style={{width:28,height:28,opacity:.25,marginBottom:8}}/>
+          <div>Sin avisos publicados.</div>
+        </div>
+      )}
+
+      <div style={{display:'flex', flexDirection:'column', gap:10}}>
+        {list.map(a => {
+          const ti = typeInfo(a.type);
+          return (
+            <div key={a.id} className="ann-row">
+              {a.image_url && <img src={a.image_url} className="ann-row-img" alt="" />}
+              <div className="ann-row-main">
+                <div style={{display:'flex', alignItems:'center', gap:6, marginBottom:4}}>
+                  <div className="ann-badge" style={{background: ti.color+'22', color: ti.color, borderColor: ti.color+'44'}}>
+                    {ti.label.toUpperCase()}
+                  </div>
+                  {a.allow_signup && (
+                    <button className="ann-signup-count" onClick={() => setViewSignups(a)}>
+                      {signupCounts[a.id] || 0} inscripciones →
+                    </button>
+                  )}
+                </div>
+                <div className="ann-body">
+                  <div className="ann-title">{a.title}</div>
+                  <div className="ann-msg">{a.body}</div>
+                  <div style={{display:'flex', gap:10, marginTop:4, flexWrap:'wrap'}}>
+                    {a.event_date && <div className="ann-exp">📅 {new Date(a.event_date).toLocaleDateString('es-MX',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</div>}
+                    {a.expires_at && <div className="ann-exp">Hasta {new Date(a.expires_at).toLocaleDateString('es-MX',{day:'2-digit',month:'short'})}</div>}
+                  </div>
+                </div>
+              </div>
+              <button className="ann-del" onClick={() => remove(a.id)} aria-label="Eliminar">
+                <Ic.x style={{width:14,height:14}}/>
+              </button>
+            </div>
+          );
+        })}
+      </div>
+
+      {viewSignups && <AnnSignupsModal ann={viewSignups} onClose={() => { setViewSignups(null); load(); }} />}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // Settings
 // ─────────────────────────────────────────────────────────────
 function SettingsScreen({ onLogout }) {
@@ -509,6 +758,7 @@ function AdminApp() {
       <div className="admin-body">
         {tab==='scan'     && <ScannerScreen/>}
         {tab==='log'      && <LogScreen/>}
+        {tab==='avisos'   && <AnnouncementsScreen/>}
         {tab==='settings' && <SettingsScreen onLogout={logout}/>}
       </div>
 
@@ -518,6 +768,9 @@ function AdminApp() {
         </button>
         <button className={`atab ${tab==='log'?'active':''}`}      onClick={()=>setTab('log')}>
           <Ic.log/><span>Historial</span>
+        </button>
+        <button className={`atab ${tab==='avisos'?'active':''}`}   onClick={()=>setTab('avisos')}>
+          <Ic.mega/><span>Avisos</span>
         </button>
         <button className={`atab ${tab==='settings'?'active':''}`} onClick={()=>setTab('settings')}>
           <Ic.cog/><span>Ajustes</span>
