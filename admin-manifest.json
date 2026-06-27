@@ -1,7 +1,7 @@
 {
   "name": "PP Recepción",
   "short_name": "Recepción",
-  "start_url": "/Admin.html",
+  "start_url": "./Admin.html",
   "display": "standalone",
   "background_color": "#0e1d57",
   "theme_color": "#0e1d57",
