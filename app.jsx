@@ -400,7 +400,7 @@ function Welcome({ onStart, onLogin }) {
           Crear mi tarjeta
           <span className="arrow"><Ic.arrow style={{width:18,height:18}} /></span>
         </button>
-        <button className="btn btn-ghost" onClick={onLogin}>Ya soy socio</button>
+        <button className="btn btn-ghost" onClick={onLogin}>Iniciar sesión</button>
       </div>
 
       <footer className="landing-footer">
