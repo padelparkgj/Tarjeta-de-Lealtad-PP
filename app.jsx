@@ -662,6 +662,13 @@ function WalletCard({ member, qrSvg, innerRef }) {
 // ──────────────────────────────────────────────────────────────
 // Card screen — tarjeta visual + descarga wallet + QR
 // ──────────────────────────────────────────────────────────────
+function isBirthdayMonth(birth) {
+  if (!birth || birth.length < 7) return false;
+  const parts = birth.split('-');
+  const m = parseInt(parts[1] || '0');
+  return m === new Date().getMonth() + 1;
+}
+
 function CardScreen({ member, cardStyle, onOpenQr }) {
   const qrSvgWallet = useMemo(() =>
     generateQrSvg(`PPGJ|${member.id}|${member.name}`, { dark: '#0e1d57', light: '#ffffff', size: 360 }),
@@ -674,6 +681,25 @@ function CardScreen({ member, cardStyle, onOpenQr }) {
   const walletRef = useRef(null);
   const [downloading, setDownloading] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
+
+  // ── Visits from Supabase ──
+  const [visits, setVisits] = useState([]);
+  const [visitsReady, setVisitsReady] = useState(false);
+
+  useEffect(() => {
+    const mid = member.member_id || member.id;
+    if (!window.PPSb || !mid) { setVisitsReady(true); return; }
+    window.PPSb.getMemberVisits(mid).then(({ data }) => {
+      setVisits(data || []);
+      setVisitsReady(true);
+    });
+  }, [member.member_id, member.id]);
+
+  const totalVisits = visits.length;
+  const nextVisit   = totalVisits + 1;
+  const nextPromo   = nextVisit % 6 === 0 ? 'free' : nextVisit % 3 === 0 ? 'silver' : null;
+  const birthday    = isBirthdayMonth(member.birth);
+  const cycleFilled = totalVisits % 6;
 
   async function downloadWallet() {
     if (!walletRef.current || !window.htmlToImage) return;
@@ -721,6 +747,51 @@ function CardScreen({ member, cardStyle, onOpenQr }) {
             Ver QR
           </button>
         </div>
+
+        {/* ── Visits & promotions ── */}
+        {visitsReady && (
+          <div className="visits-block">
+            <div className="vb-top">
+              <div className="vb-count">
+                <span className="vb-n">{totalVisits}</span>
+                <span className="vb-label">visitas</span>
+              </div>
+              <div className="vb-cycle">
+                {[1,2,3,4,5,6].map(i => (
+                  <div key={i}
+                    className={`vdot ${i<=cycleFilled?'filled':''} ${i===3?'mark-s':''} ${i===6?'mark-f':''}`}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {nextPromo === 'free' && (
+              <div className="vb-promo promo-free">
+                🎉 ¡Tu próxima visita es <strong>GRATIS</strong>!
+              </div>
+            )}
+            {nextPromo === 'silver' && (
+              <div className="vb-promo promo-silver">
+                ⚡ Tu próxima visita aplica <strong>precio Silver</strong>
+              </div>
+            )}
+            {!nextPromo && totalVisits > 0 && (
+              <div className="vb-next">
+                {3 - (totalVisits % 3)} visita{3-(totalVisits%3)!==1?'s':''} para precio Silver ·{' '}
+                {6 - (totalVisits % 6)} para cancha gratis
+              </div>
+            )}
+            {totalVisits === 0 && (
+              <div className="vb-next">Presenta tu QR en recepción para registrar tu primera visita</div>
+            )}
+
+            {birthday && (
+              <div className="vb-promo promo-birthday">
+                🎂 ¡Tienes una sorpresa este mes de cumpleaños!
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="notice-box">
           <Ic.shield style={{width:18, height:18, flexShrink:0}} />

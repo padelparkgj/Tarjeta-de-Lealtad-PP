@@ -1384,6 +1384,198 @@ input, textarea, select { font-family: inherit; }
   letter-spacing: 0.04em;
 }
 
+/* ── Visits block (CardScreen) ────────────────────────────── */
+.visits-block {
+  background: var(--navy);
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.vb-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.vb-count {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+.vb-n {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 40px;
+  color: var(--lime);
+  line-height: 1;
+}
+.vb-label {
+  font-size: 12px;
+  color: rgba(255,255,255,0.45);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.vb-cycle {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.vdot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.1);
+  border: 1.5px solid rgba(255,255,255,0.15);
+  position: relative;
+  flex-shrink: 0;
+}
+.vdot.filled { background: var(--lime); border-color: var(--lime); }
+.vdot.mark-s::after { content:''; position:absolute; bottom:-6px; left:50%; transform:translateX(-50%); width:4px; height:4px; border-radius:50%; background: #7ac; }
+.vdot.mark-f::after { content:''; position:absolute; bottom:-6px; left:50%; transform:translateX(-50%); width:4px; height:4px; border-radius:50%; background: var(--lime); }
+.vb-promo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.promo-free    { background: rgba(184,242,74,0.12); color: var(--lime); border: 1px solid rgba(184,242,74,0.3); }
+.promo-silver  { background: rgba(122,172,204,0.12); color: #8ecce6; border: 1px solid rgba(122,172,204,0.3); }
+.promo-birthday{ background: rgba(255,180,100,0.12); color: #ffb464; border: 1px solid rgba(255,180,100,0.3); }
+.vb-next {
+  font-size: 11px;
+  color: rgba(255,255,255,0.38);
+  text-align: center;
+  padding: 2px 0;
+}
+
+/* ── Member panel (admin.jsx) ─────────────────────────────── */
+.member-panel {
+  padding: 20px 20px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+.mp-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: var(--navy);
+  color: var(--lime);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid rgba(184,242,74,0.35);
+}
+.mp-name {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--navy-ink);
+  line-height: 1.2;
+}
+.mp-meta {
+  font-size: 12px;
+  color: rgba(14,29,87,0.45);
+}
+.mp-visits-block {
+  background: var(--navy-ink);
+  border-radius: 14px;
+  padding: 14px 16px 10px;
+  width: 100%;
+  text-align: center;
+}
+.mp-visits-n {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 48px;
+  color: var(--lime);
+  line-height: 1;
+}
+.mp-visits-label {
+  font-size: 11px;
+  color: rgba(255,255,255,0.4);
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  margin-bottom: 10px;
+}
+.mp-cycle {
+  display: flex;
+  justify-content: center;
+  gap: 7px;
+  margin-bottom: 4px;
+}
+.cycle-dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.08);
+  border: 1.5px solid rgba(255,255,255,0.15);
+  position: relative;
+}
+.cycle-dot.filled   { background: var(--lime); border-color: var(--lime); }
+.cycle-dot.mark-silver::after { content:'S'; position:absolute; bottom:-16px; left:50%; transform:translateX(-50%); font-size:9px; color:#7ac; }
+.cycle-dot.mark-free::after   { content:'G'; position:absolute; bottom:-16px; left:50%; transform:translateX(-50%); font-size:9px; color:var(--lime); }
+.mp-cycle-legend {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 18px;
+  font-size: 10px;
+  color: rgba(255,255,255,0.35);
+}
+.mp-cycle-legend span { display:flex; align-items:center; gap:4px; }
+.cd-silver { display:inline-block; width:8px; height:8px; border-radius:50%; background:#7ac; }
+.cd-free   { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--lime); }
+.mp-promo {
+  width: 100%;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mp-court-tag {
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(14,29,87,0.45);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+.mp-lookup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 60px 20px;
+  color: rgba(14,29,87,0.5);
+  font-size: 14px;
+}
+.mp-spinner {
+  width: 36px; height: 36px;
+  border: 3px solid rgba(14,29,87,0.1);
+  border-top-color: var(--navy);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.sr-next {
+  font-size: 13px;
+  color: rgba(14,29,87,0.5);
+  background: rgba(14,29,87,0.06);
+  border-radius: 8px;
+  padding: 8px 14px;
+  margin: 4px 0;
+}
+
 /* Auth error messages */
 .field-error {
   color: #e05555;
