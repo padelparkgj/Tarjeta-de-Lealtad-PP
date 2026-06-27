@@ -47,6 +47,7 @@ function parseQr(text) {
 const Ic = {
   cam:    p => <svg viewBox="0 0 24 24" fill="none" {...p}><path d="M3 8a2 2 0 012-2h2l2-2h6l2 2h2a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/><circle cx="12" cy="13" r="4" stroke="currentColor" strokeWidth="1.6"/></svg>,
   mega:   p => <svg viewBox="0 0 24 24" fill="none" {...p}><path d="M3 11v2M5 8.5C7.5 10 12 11 18 11v2c-6 0-10.5 1-13 2.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/><path d="M5 8.5V16.5M5 8.5C5 7.7 5.7 7 6.5 7H7l11-3v14L7 15H6.5C5.7 15 5 14.3 5 13.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/><path d="M7 15l1 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>,
+  pencil: p => <svg viewBox="0 0 24 24" fill="none" {...p}><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>,
   check:  p => <svg viewBox="0 0 24 24" fill="none" {...p}><path d="M5 12l5 5L20 7" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/></svg>,
   x:      p => <svg viewBox="0 0 24 24" fill="none" {...p}><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>,
   cog:    p => <svg viewBox="0 0 24 24" fill="none" {...p}><circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.6"/><path d="M19.4 15a1.7 1.7 0 00.4 1.9l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.9-.4 1.7 1.7 0 00-1 1.5V21a2 2 0 01-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.9.4l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.4-1.9 1.7 1.7 0 00-1.5-1H3a2 2 0 010-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.4-1.9l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.9.4h.1a1.7 1.7 0 001-1.5V3a2 2 0 014 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.9-.4l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.4 1.9v.1a1.7 1.7 0 001.5 1H21a2 2 0 010 4h-.1a1.7 1.7 0 00-1.5 1z" stroke="currentColor" strokeWidth="1.4"/></svg>,
@@ -493,6 +494,7 @@ function AnnouncementsScreen() {
   const [busy,       setBusy]       = useState(false);
   const [uploading,  setUploading]  = useState(false);
   const [viewSignups, setViewSignups] = useState(null);
+  const [editingId,  setEditingId]  = useState(null);
   const [form, setForm] = useState({
     type: 'torneo', title: '', body: '',
     image_url: '', event_date: '', expires_at: '', allow_signup: false,
@@ -500,6 +502,7 @@ function AnnouncementsScreen() {
   const [imgPreview, setImgPreview] = useState(null);
   const [err, setErr] = useState(null);
   const fileRef = useRef(null);
+  const formRef = useRef(null);
 
   function load() {
     if (!window.PPSb) { setLoading(false); return; }
@@ -536,6 +539,29 @@ function AnnouncementsScreen() {
     }
   }
 
+  function startEdit(a) {
+    setEditingId(a.id);
+    setForm({
+      type:         a.type || 'torneo',
+      title:        a.title || '',
+      body:         a.body || '',
+      image_url:    a.image_url || '',
+      event_date:   a.event_date ? a.event_date.slice(0, 16) : '',
+      expires_at:   a.expires_at ? a.expires_at.slice(0, 10) : '',
+      allow_signup: a.allow_signup || false,
+    });
+    setImgPreview(a.image_url || null);
+    setErr(null);
+    formRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setForm({ type: 'torneo', title: '', body: '', image_url: '', event_date: '', expires_at: '', allow_signup: false });
+    setImgPreview(null);
+    setErr(null);
+  }
+
   async function publish(e) {
     e.preventDefault();
     if (!form.title.trim() || !form.body.trim()) { setErr('Título y mensaje son requeridos.'); return; }
@@ -550,15 +576,17 @@ function AnnouncementsScreen() {
       allow_signup: form.allow_signup,
       active:       true,
     };
-    const { error } = await window.PPSb.createAnnouncement(payload);
-    if (error) { setErr('Error al publicar: ' + error.message); setBusy(false); return; }
-    setForm({ type: 'torneo', title: '', body: '', image_url: '', event_date: '', expires_at: '', allow_signup: false });
-    setImgPreview(null);
+    const { error } = editingId
+      ? await window.PPSb.updateAnnouncement(editingId, payload)
+      : await window.PPSb.createAnnouncement(payload);
+    if (error) { setErr('Error: ' + error.message); setBusy(false); return; }
+    cancelEdit();
     setBusy(false);
     load();
   }
 
   async function remove(id) {
+    if (editingId === id) cancelEdit();
     await window.PPSb.deleteAnnouncement(id);
     load();
   }
@@ -570,7 +598,13 @@ function AnnouncementsScreen() {
       <h2>Avisos a socios</h2>
       <p className="ann-lead">Los avisos aparecen en la app de todos los socios al instante.</p>
 
-      <div className="ann-form-card">
+      <div className="ann-form-card" ref={formRef}>
+        {editingId && (
+          <div className="ann-edit-banner">
+            <Ic.pencil style={{width:14,height:14}}/> Editando aviso
+            <button type="button" onClick={cancelEdit}>Cancelar</button>
+          </div>
+        )}
         <form onSubmit={publish}>
           <div className="ann-type-row">
             {TYPES.map(t => (
@@ -630,7 +664,7 @@ function AnnouncementsScreen() {
           {err && <p className="field-error">{err}</p>}
           <button type="submit" className="btn btn-primary" style={{width:'100%',marginTop:14}}
             disabled={busy || uploading || !window.PPSb}>
-            {busy ? 'Publicando…' : 'Publicar aviso'}
+            {busy ? (editingId ? 'Guardando…' : 'Publicando…') : (editingId ? 'Guardar cambios' : 'Publicar aviso')}
             {!busy && <Ic.mega style={{width:15,height:15}}/>}
           </button>
           {!window.PPSb && <p style={{fontSize:12,color:'#c97',marginTop:8,textAlign:'center'}}>Sin conexión a Supabase</p>}
@@ -675,9 +709,14 @@ function AnnouncementsScreen() {
                   </div>
                 </div>
               </div>
-              <button className="ann-del" onClick={() => remove(a.id)} aria-label="Eliminar">
-                <Ic.x style={{width:14,height:14}}/>
-              </button>
+              <div style={{display:'flex', flexDirection:'column', gap:6}}>
+                <button className="ann-edit-btn" onClick={() => startEdit(a)} aria-label="Editar">
+                  <Ic.pencil style={{width:13,height:13}}/>
+                </button>
+                <button className="ann-del" onClick={() => remove(a.id)} aria-label="Eliminar">
+                  <Ic.x style={{width:14,height:14}}/>
+                </button>
+              </div>
             </div>
           );
         })}

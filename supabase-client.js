@@ -69,6 +69,9 @@
     deleteAnnouncement(id) {
       return sb.from('announcements').delete().eq('id', id);
     },
+    updateAnnouncement(id, data) {
+      return sb.from('announcements').update(data).eq('id', id);
+    },
     async uploadAnnouncementImage(file) {
       const ext  = file.name.split('.').pop();
       const path = `ann-${Date.now()}.${ext}`;
