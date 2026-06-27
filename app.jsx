@@ -363,6 +363,8 @@ function Welcome({ onStart, onLogin }) {
         <p className="lead">Tu tarjeta personal, generada al instante. Acumula visitas, sube de nivel y desbloquea horas gratis en Padel Park Gran Jardín.</p>
       </div>
 
+      <AnnouncementBanner member={null} />
+
       <div className="photo-card">
         <WinnersCarousel />
         <div className="badge">CAMPEONES PP</div>
@@ -402,8 +404,6 @@ function Welcome({ onStart, onLogin }) {
         </button>
         <button className="btn btn-ghost" onClick={onLogin}>Iniciar sesión</button>
       </div>
-
-      <AnnouncementBanner member={null} />
 
       <footer className="landing-footer">
         <a
