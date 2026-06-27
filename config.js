@@ -20,4 +20,8 @@ window.PPGJ_CONFIG = {
     sub:  "Gran Jardín",
     city: "León, Gto",
   },
+
+  // Supabase (auth + base de datos de socios)
+  supabaseUrl: "https://fsuqslgmilyqkutyvvdl.supabase.co",
+  supabaseKey: "sb_publishable_znGU1rUioJvgnUD-FmsxIw_kEaJFMW6",
 };

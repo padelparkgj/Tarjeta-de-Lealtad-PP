@@ -203,6 +203,79 @@ function TopBar({ right }) {
 }
 
 // ──────────────────────────────────────────────────────────────
+// Loading screen (while checking Supabase session)
+// ──────────────────────────────────────────────────────────────
+function LoadingScreen() {
+  return (
+    <div className="generating">
+      <div className="preview-card" style={{animation:'pulse 1.5s ease-in-out infinite'}} />
+      <h3>Cargando...</h3>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// Login form
+// ──────────────────────────────────────────────────────────────
+function LoginForm({ onBack, onSuccess }) {
+  const [email,    setEmail]    = useState('');
+  const [password, setPassword] = useState('');
+  const [error,    setError]    = useState(null);
+  const [busy,     setBusy]     = useState(false);
+
+  async function submit(e) {
+    e.preventDefault();
+    if (!email || !password) return;
+    setBusy(true);
+    setError(null);
+
+    const { data, error: err } = await window.PPSb.signIn(email.trim().toLowerCase(), password);
+    if (err) {
+      setError('Correo o contraseña incorrectos.');
+      setBusy(false);
+      return;
+    }
+
+    const { data: row } = await window.PPSb.getMember(data.user.id);
+    onSuccess(row ? { ...row, id: row.member_id } : null);
+  }
+
+  return (
+    <div className="scroll fade-in">
+      <TopBar right="ACCESO" />
+      <div className="form-wrap">
+        <div className="step">Bienvenido de vuelta</div>
+        <h2>Inicia<br/>sesión.</h2>
+        <p className="sub">Usa el correo y contraseña que registraste al crear tu tarjeta.</p>
+
+        <form onSubmit={submit}>
+          <div className="field">
+            <label>Correo electrónico</label>
+            <input type="email" value={email} onChange={e=>setEmail(e.target.value)}
+              placeholder="maria@correo.com" autoComplete="email" />
+          </div>
+          <div className="field">
+            <label>Contraseña</label>
+            <input type="password" value={password} onChange={e=>setPassword(e.target.value)}
+              placeholder="••••••••" autoComplete="current-password" />
+          </div>
+
+          {error && <p className="field-error">{error}</p>}
+
+          <button type="submit" className="btn btn-primary" style={{width:'100%'}} disabled={busy}>
+            {busy ? 'Entrando…' : 'Iniciar sesión'}
+            {!busy && <span className="arrow"><Ic.arrow style={{width:18,height:18}} /></span>}
+          </button>
+          <button type="button" className="btn btn-ghost" style={{width:'100%',marginTop:10}} onClick={onBack}>
+            Regresar
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
 // PWA install prompt
 // ──────────────────────────────────────────────────────────────
 const INSTALL_DISMISS_KEY = 'pp_install_dismissed';
@@ -276,7 +349,7 @@ function InstallPrompt() {
 // ──────────────────────────────────────────────────────────────
 // Welcome screen
 // ──────────────────────────────────────────────────────────────
-function Welcome({ onStart, onResume, hasMember }) {
+function Welcome({ onStart, onLogin }) {
   return (
     <div className="scroll fade-in">
       <TopBar right="LEÓN ·" />
@@ -324,12 +397,10 @@ function Welcome({ onStart, onResume, hasMember }) {
 
       <div className="cta-row">
         <button className="btn btn-primary" onClick={onStart}>
-          {hasMember ? 'Crear otra tarjeta' : 'Crear mi tarjeta'}
+          Crear mi tarjeta
           <span className="arrow"><Ic.arrow style={{width:18,height:18}} /></span>
         </button>
-        {hasMember && (
-          <button className="btn btn-ghost" onClick={onResume}>Ver mi tarjeta</button>
-        )}
+        <button className="btn btn-ghost" onClick={onLogin}>Ya soy socio</button>
       </div>
 
       <footer className="landing-footer">
@@ -356,9 +427,9 @@ function Welcome({ onStart, onResume, hasMember }) {
 // ──────────────────────────────────────────────────────────────
 // Registration form
 // ──────────────────────────────────────────────────────────────
-function RegisterForm({ onBack, onSubmit }) {
+function RegisterForm({ onBack, onSubmit, authError }) {
   const [data, setData] = useState({
-    name: '', email: '', phone: '', birth: '', level: 'Intermedio', terms: false
+    name: '', email: '', password: '', phone: '', birth: '', level: 'Intermedio', terms: false
   });
   const [errors, setErrors] = useState({});
 
@@ -369,6 +440,7 @@ function RegisterForm({ onBack, onSubmit }) {
     const err = {};
     if (!data.name.trim() || data.name.trim().length < 2) err.name = true;
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) err.email = true;
+    if (!data.password || data.password.length < 6) err.password = true;
     if (!/^\+?\d[\d\s\-]{7,}$/.test(data.phone)) err.phone = true;
     if (!data.terms) err.terms = true;
     setErrors(err);
@@ -390,7 +462,12 @@ function RegisterForm({ onBack, onSubmit }) {
           </div>
           <div className="field">
             <label>Correo electrónico</label>
-            <input type="email" value={data.email} onChange={e=>set('email', e.target.value)} placeholder="maria@correo.com" style={errors.email ? {borderColor:'#d44'} : null} />
+            <input type="email" value={data.email} onChange={e=>set('email', e.target.value)} placeholder="maria@correo.com" autoComplete="email" style={errors.email ? {borderColor:'#d44'} : null} />
+          </div>
+          <div className="field">
+            <label>Contraseña <span style={{opacity:0.5,fontWeight:400}}>(mín. 6 caracteres)</span></label>
+            <input type="password" value={data.password} onChange={e=>set('password', e.target.value)} placeholder="••••••••" autoComplete="new-password" style={errors.password ? {borderColor:'#d44'} : null} />
+            {errors.password && <span className="field-error-inline">Mínimo 6 caracteres</span>}
           </div>
           <div className="field-row">
             <div className="field">
@@ -415,6 +492,8 @@ function RegisterForm({ onBack, onSubmit }) {
             <input type="checkbox" checked={data.terms} onChange={e=>set('terms', e.target.checked)} />
             <span>Acepto recibir comunicación de Padel Park Gran Jardín y los <a href="#">términos del programa</a>.</span>
           </label>
+
+          {authError && <p className="field-error">{authError}</p>}
 
           <button type="submit" className="btn btn-primary" style={{width:'100%'}}>
             Generar mi tarjeta
@@ -646,7 +725,7 @@ function CardScreen({ member, cardStyle, onOpenQr }) {
         <div className="notice-box">
           <Ic.shield style={{width:18, height:18, flexShrink:0}} />
           <div>
-            <strong>Tu tarjeta no se guarda en la nube.</strong> Descarga tu pase y guárdalo en Fotos — lo necesitarás presentar en recepción cada vez que visites el club.
+            <strong>Tu tarjeta está guardada en la nube.</strong> Puedes acceder desde cualquier dispositivo con tu correo y contraseña.
           </div>
         </div>
 
@@ -798,59 +877,106 @@ function App() {
   // Tweaks
   const [tweaks, setTweak] = (window.useTweaks || (() => [TWEAK_DEFAULTS, () => {}]))(TWEAK_DEFAULTS);
 
-  // Screen: welcome | form | generating | main
-  const [screen, setScreen] = useState('welcome');
+  // Screen: loading | welcome | login | form | generating | main
+  const [screen, setScreen] = useState('loading');
   const [tab, setTab] = useState('card');
   const [pendingForm, setPendingForm] = useState(null);
   const [member, setMember] = useState(null);
   const [qrOpen, setQrOpen] = useState(false);
+  const [authError, setAuthError] = useState(null);
 
-  // Load saved
+  // Check Supabase session on mount
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) setMember(JSON.parse(raw));
-    } catch(e) {}
+    if (!window.PPSb) { setScreen('welcome'); return; }
+
+    window.PPSb.getSession().then(({ data: { session } }) => {
+      if (session) {
+        window.PPSb.getMember(session.user.id).then(({ data }) => {
+          if (data) {
+            setMember({ ...data, id: data.member_id });
+            setScreen('main');
+          } else {
+            setScreen('welcome');
+          }
+        });
+      } else {
+        setScreen('welcome');
+      }
+    });
+
+    const { data: { subscription } } = window.PPSb.onAuthChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        setMember(null);
+        setScreen('welcome');
+        setTab('card');
+      }
+    });
+    return () => subscription.unsubscribe();
   }, []);
 
-  // Persist member
-  useEffect(() => {
-    if (member) localStorage.setItem(STORAGE_KEY, JSON.stringify(member));
-  }, [member]);
+  function handleStart() { setAuthError(null); setScreen('form'); }
+  function handleLogin() { setAuthError(null); setScreen('login'); }
 
-  function handleStart()  { setScreen('form'); }
-  function handleResume() { setScreen('main'); setTab('card'); }
+  function handleLoginSuccess(memberData) {
+    if (memberData) {
+      setMember(memberData);
+      setScreen('main');
+    } else {
+      setScreen('welcome');
+    }
+  }
+
   function handleSubmitForm(data) {
     setPendingForm(data);
     setScreen('generating');
   }
-  function handleGenDone() {
-    const now = Date.now();
-    const id = memberIdFrom(pendingForm.name, pendingForm.email);
+
+  async function handleGenDone() {
+    const now = new Date().toISOString();
+    const id  = memberIdFrom(pendingForm.name, pendingForm.email);
+
+    if (window.PPSb) {
+      const { data: authData, error: authErr } = await window.PPSb.signUp(
+        pendingForm.email.trim().toLowerCase(),
+        pendingForm.password
+      );
+      if (authErr) {
+        setAuthError(authErr.message);
+        setScreen('form');
+        return;
+      }
+      if (authData.user) {
+        await window.PPSb.saveMember(authData.user.id, {
+          member_id:  id,
+          name:       pendingForm.name,
+          email:      pendingForm.email.trim().toLowerCase(),
+          phone:      pendingForm.phone,
+          birth:      pendingForm.birth,
+          level:      pendingForm.level,
+          joined_at:  now,
+        });
+      }
+    }
+
     const m = {
-      ...pendingForm,
       id,
-      joinedAt: now,
+      member_id: id,
+      name:      pendingForm.name,
+      email:     pendingForm.email,
+      phone:     pendingForm.phone,
+      birth:     pendingForm.birth,
+      level:     pendingForm.level,
+      joined_at: now,
     };
     setMember(m);
     setScreen('main');
     setTab('card');
-    // Persist registration to Google Sheet (only — staff will see this in the Sheet)
-    if (window.PPGJ) {
-      window.PPGJ.register({
-        id: m.id,
-        name: m.name,
-        email: m.email,
-        phone: m.phone,
-        birth: m.birth,
-        level: m.level,
-        joinedAt: m.joinedAt,
-      });
-    }
+
+    if (window.PPGJ) window.PPGJ.register({ id, ...m, joinedAt: now });
   }
 
-  function handleReset() {
-    localStorage.removeItem(STORAGE_KEY);
+  async function handleReset() {
+    if (window.PPSb) await window.PPSb.signOut();
     setMember(null);
     setScreen('welcome');
     setTab('card');
@@ -859,8 +985,10 @@ function App() {
   return (
     <div className="app-shell">
       <div className="phone">
-        {screen === 'welcome'    && <Welcome onStart={handleStart} onResume={handleResume} hasMember={!!member} />}
-        {screen === 'form'       && <RegisterForm onBack={()=>setScreen('welcome')} onSubmit={handleSubmitForm} />}
+        {screen === 'loading'    && <LoadingScreen />}
+        {screen === 'welcome'    && <Welcome onStart={handleStart} onLogin={handleLogin} />}
+        {screen === 'login'      && <LoginForm onBack={()=>setScreen('welcome')} onSuccess={handleLoginSuccess} />}
+        {screen === 'form'       && <RegisterForm onBack={()=>setScreen('welcome')} onSubmit={handleSubmitForm} authError={authError} />}
         {screen === 'generating' && <Generating formData={pendingForm} onDone={handleGenDone} />}
 
         {screen === 'main' && member && (
