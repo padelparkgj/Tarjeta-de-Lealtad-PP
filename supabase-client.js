@@ -54,5 +54,20 @@
         .order('visited_at', { ascending: false })
         .limit(200);
     },
+
+    // ── Announcements table ───────────────────────────────────
+    getAnnouncements() {
+      return sb.from('announcements')
+        .select('*')
+        .eq('active', true)
+        .or('expires_at.is.null,expires_at.gt.' + new Date().toISOString())
+        .order('created_at', { ascending: false });
+    },
+    createAnnouncement(data) {
+      return sb.from('announcements').insert(data);
+    },
+    deleteAnnouncement(id) {
+      return sb.from('announcements').delete().eq('id', id);
+    },
   };
 })();

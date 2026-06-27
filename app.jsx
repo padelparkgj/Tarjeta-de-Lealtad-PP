@@ -908,6 +908,51 @@ function ProfileScreen({ member, onReset }) {
 }
 
 // ──────────────────────────────────────────────────────────────
+// Announcement banner — shows active club announcements
+// ──────────────────────────────────────────────────────────────
+const ANN_COLORS = {
+  torneo: { bg: 'rgba(184,242,74,0.12)', border: 'rgba(184,242,74,0.35)', badge: '#b8f24a', text: '#1a3a00' },
+  precio: { bg: 'rgba(122,220,240,0.10)', border: 'rgba(122,220,240,0.35)', badge: '#7adcf0', text: '#003344' },
+  info:   { bg: 'rgba(255,180,100,0.10)', border: 'rgba(255,180,100,0.35)', badge: '#ffb464', text: '#3a1a00' },
+};
+const ANN_LABELS = { torneo: 'TORNEO', precio: 'PRECIO ESPECIAL', info: 'AVISO' };
+
+function AnnouncementBanner() {
+  const [items,    setItems]    = useState([]);
+  const [dismissed, setDismissed] = useState(new Set());
+
+  useEffect(() => {
+    if (!window.PPSb) return;
+    window.PPSb.getAnnouncements().then(({ data }) => setItems(data || []));
+  }, []);
+
+  const visible = items.filter(a => !dismissed.has(a.id));
+  if (!visible.length) return null;
+
+  return (
+    <div className="ann-banner-stack">
+      {visible.map(a => {
+        const c = ANN_COLORS[a.type] || ANN_COLORS.info;
+        return (
+          <div key={a.id} className="ann-banner" style={{ background: c.bg, borderColor: c.border }}>
+            <div className="ann-banner-left">
+              <span className="ann-banner-badge" style={{ background: c.badge, color: c.text }}>
+                {ANN_LABELS[a.type] || 'AVISO'}
+              </span>
+              <div className="ann-banner-title">{a.title}</div>
+              <div className="ann-banner-body">{a.body}</div>
+            </div>
+            <button className="ann-banner-close" onClick={() => setDismissed(s => new Set([...s, a.id]))}>
+              <Ic.close style={{width:14,height:14}} />
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
 // Tab bar
 // ──────────────────────────────────────────────────────────────
 function TabBar({ tab, setTab }) {
@@ -1055,6 +1100,7 @@ function App() {
 
         {screen === 'main' && member && (
           <>
+            <AnnouncementBanner />
             {tab === 'card'     && <CardScreen member={member} cardStyle={tweaks.cardStyle} onOpenQr={()=>setQrOpen(true)} />}
             {tab === 'rewards'  && <RewardsScreen />}
             {tab === 'profile'  && <ProfileScreen member={member} onReset={handleReset} />}
