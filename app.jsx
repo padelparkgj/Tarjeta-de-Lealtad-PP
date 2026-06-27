@@ -588,9 +588,20 @@ function QrModal({ member, onClose }) {
     generateQrSvg(`PPGJ|${member.id}|${member.name}`, { dark: '#0e1d57', light: '#ffffff', size: 280 }),
   [member.id, member.name]);
 
+  const tapRef = useRef(null);
+  function handleTap() {
+    if (tapRef.current) {
+      clearTimeout(tapRef.current);
+      tapRef.current = null;
+      onClose();
+    } else {
+      tapRef.current = setTimeout(() => { tapRef.current = null; }, 350);
+    }
+  }
+
   return (
-    <div className="qr-modal">
-      <button className="close" onClick={onClose}><Ic.close /></button>
+    <div className="qr-modal" onDoubleClick={onClose} onClick={handleTap}>
+      <button className="close" onClick={e => { e.stopPropagation(); onClose(); }}><Ic.close /></button>
       <div className="qr-box">
         <div dangerouslySetInnerHTML={{__html: qrSvg}} />
       </div>
