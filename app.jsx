@@ -203,6 +203,77 @@ function TopBar({ right }) {
 }
 
 // ──────────────────────────────────────────────────────────────
+// PWA install prompt
+// ──────────────────────────────────────────────────────────────
+const INSTALL_DISMISS_KEY = 'pp_install_dismissed';
+const INSTALL_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+function InstallPrompt() {
+  const [visible, setVisible] = useState(false);
+  const [deferredEvt, setDeferredEvt] = useState(null);
+
+  const isIOS       = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isStandalone = window.navigator.standalone === true
+                    || window.matchMedia('(display-mode: standalone)').matches;
+
+  useEffect(() => {
+    if (isStandalone) return;
+
+    // Check cooldown
+    const dismissed = localStorage.getItem(INSTALL_DISMISS_KEY);
+    if (dismissed && Date.now() - Number(dismissed) < INSTALL_COOLDOWN_MS) return;
+
+    if (isIOS) {
+      const t = setTimeout(() => setVisible(true), 1800);
+      return () => clearTimeout(t);
+    }
+
+    // Android / desktop Chrome
+    const handler = (e) => {
+      e.preventDefault();
+      setDeferredEvt(e);
+      const t = setTimeout(() => setVisible(true), 1800);
+      return () => clearTimeout(t);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  function dismiss() {
+    localStorage.setItem(INSTALL_DISMISS_KEY, String(Date.now()));
+    setVisible(false);
+  }
+
+  async function install() {
+    if (deferredEvt) {
+      deferredEvt.prompt();
+      const { outcome } = await deferredEvt.userChoice;
+      if (outcome === 'accepted') setDeferredEvt(null);
+    }
+    dismiss();
+  }
+
+  if (!visible) return null;
+
+  return (
+    <div className="install-prompt">
+      <img src="icons/icon-192.png" className="install-icon" alt="icono" />
+      <div className="install-text">
+        <strong>Agrega la app a tu inicio</strong>
+        {isIOS
+          ? <span>Toca <span className="install-share-icon">↑</span> y luego <em>"Agregar a pantalla de inicio"</em></span>
+          : <span>Úsala como app — sin abrir el navegador.</span>
+        }
+      </div>
+      {!isIOS && deferredEvt && (
+        <button className="install-btn" onClick={install}>Agregar</button>
+      )}
+      <button className="install-close" onClick={dismiss} aria-label="Cerrar">✕</button>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
 // Welcome screen
 // ──────────────────────────────────────────────────────────────
 function Welcome({ onStart, onResume, hasMember }) {
@@ -277,6 +348,7 @@ function Welcome({ onStart, onResume, hasMember }) {
         </a>
         <div className="footer-copy">© {new Date().getFullYear()} Padel Park Gran Jardín · León, Gto</div>
       </footer>
+      <InstallPrompt />
     </div>
   );
 }
