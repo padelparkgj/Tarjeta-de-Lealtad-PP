@@ -403,6 +403,8 @@ function Welcome({ onStart, onLogin }) {
         <button className="btn btn-ghost" onClick={onLogin}>Iniciar sesión</button>
       </div>
 
+      <AnnouncementBanner member={null} />
+
       <footer className="landing-footer">
         <a
           href="https://www.instagram.com/padel_park_granjardin?igsh=NGpvMjRsbHZ2eTRl&utm_source=qr"

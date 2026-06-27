@@ -1696,8 +1696,7 @@ input, textarea, select { font-family: inherit; }
 }
 .ann-card-img {
   width: 100%;
-  max-height: 160px;
-  object-fit: cover;
+  height: auto;
   display: block;
 }
 .ann-card-body {
