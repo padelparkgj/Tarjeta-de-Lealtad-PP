@@ -674,10 +674,6 @@ function CardScreen({ member, cardStyle, onOpenQr }) {
     generateQrSvg(`PPGJ|${member.id}|${member.name}`, { dark: '#0e1d57', light: '#ffffff', size: 360 }),
   [member.id, member.name]);
 
-  const qrSvgThumb = useMemo(() =>
-    generateQrSvg(`PPGJ|${member.id}|${member.name}`, { dark: '#0e1d57', light: '#ffffff', size: 120 }),
-  [member.id, member.name]);
-
   const walletRef = useRef(null);
   const [downloading, setDownloading] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
@@ -796,23 +792,7 @@ function CardScreen({ member, cardStyle, onOpenQr }) {
         <div className="notice-box">
           <Ic.shield style={{width:18, height:18, flexShrink:0}} />
           <div>
-            <strong>Tu tarjeta está guardada en la nube.</strong> Puedes acceder desde cualquier dispositivo con tu correo y contraseña.
-          </div>
-        </div>
-
-        <div className="qr-section">
-          <div className="qr-thumb" dangerouslySetInnerHTML={{__html: qrSvgThumb}} />
-          <div className="qr-meta">
-            <div className="ttl">Tu QR personal</div>
-            <div className="sub">Muéstralo en recepción para registrar tu visita.</div>
-          </div>
-          <button onClick={onOpenQr}>ABRIR</button>
-        </div>
-
-        <div className="benefits-preview">
-          <div className="bp-row">
-            <Ic.gift style={{width:18, height:18}} />
-            <span>Tu tarjeta abre los beneficios del programa de lealtad.</span>
+            <strong>Guardada en la nube.</strong> Accede desde cualquier dispositivo con tu correo y contraseña.
           </div>
         </div>
       </div>
