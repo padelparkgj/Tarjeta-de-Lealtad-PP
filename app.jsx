@@ -911,14 +911,99 @@ function ProfileScreen({ member, onReset }) {
 // Announcement banner — shows active club announcements
 // ──────────────────────────────────────────────────────────────
 const ANN_COLORS = {
-  torneo: { bg: 'rgba(184,242,74,0.12)', border: 'rgba(184,242,74,0.35)', badge: '#b8f24a', text: '#1a3a00' },
-  precio: { bg: 'rgba(122,220,240,0.10)', border: 'rgba(122,220,240,0.35)', badge: '#7adcf0', text: '#003344' },
-  info:   { bg: 'rgba(255,180,100,0.10)', border: 'rgba(255,180,100,0.35)', badge: '#ffb464', text: '#3a1a00' },
+  torneo: { bg: 'rgba(14,29,87,0.97)',    border: 'rgba(184,242,74,0.3)',  badge: '#b8f24a', badgeText: '#0e1d57' },
+  precio: { bg: 'rgba(10,40,60,0.97)',    border: 'rgba(122,220,240,0.3)', badge: '#7adcf0', badgeText: '#00263a' },
+  info:   { bg: 'rgba(40,20,10,0.96)',    border: 'rgba(255,180,100,0.3)', badge: '#ffb464', badgeText: '#3a1a00' },
 };
 const ANN_LABELS = { torneo: 'TORNEO', precio: 'PRECIO ESPECIAL', info: 'AVISO' };
 
-function AnnouncementBanner() {
-  const [items,    setItems]    = useState([]);
+function useCountdown(eventDate) {
+  const calc = () => {
+    if (!eventDate) return null;
+    const diff = new Date(eventDate) - new Date();
+    if (diff <= 0) return null;
+    return {
+      d: Math.floor(diff / 86400000),
+      h: Math.floor((diff % 86400000) / 3600000),
+      m: Math.floor((diff % 3600000) / 60000),
+      s: Math.floor((diff % 60000) / 1000),
+    };
+  };
+  const [rem, setRem] = useState(calc);
+  useEffect(() => {
+    if (!eventDate) return;
+    const t = setInterval(() => setRem(calc()), 1000);
+    return () => clearInterval(t);
+  }, [eventDate]);
+  return rem;
+}
+
+function AnnCard({ ann, member, onDismiss }) {
+  const c   = ANN_COLORS[ann.type] || ANN_COLORS.info;
+  const rem = useCountdown(ann.event_date);
+  const [signedUp, setSignedUp] = useState(false);
+  const [sigBusy,  setSigBusy]  = useState(false);
+
+  useEffect(() => {
+    if (!ann.allow_signup || !member || !window.PPSb) return;
+    window.PPSb.getMemberSignups(member.member_id || member.id).then(({ data }) => {
+      if (data && data.some(s => s.announcement_id === ann.id)) setSignedUp(true);
+    });
+  }, [ann.id]);
+
+  async function toggleSignup() {
+    if (!member || !window.PPSb) return;
+    setSigBusy(true);
+    const mid = member.member_id || member.id;
+    if (signedUp) {
+      await window.PPSb.cancelSignup(ann.id, mid);
+      setSignedUp(false);
+    } else {
+      await window.PPSb.signUpForEvent(ann.id, mid, member.name);
+      setSignedUp(true);
+    }
+    setSigBusy(false);
+  }
+
+  return (
+    <div className="ann-card" style={{ borderColor: c.border }}>
+      {ann.image_url && (
+        <img src={ann.image_url} className="ann-card-img" alt={ann.title} />
+      )}
+      <div className="ann-card-body" style={{ background: c.bg }}>
+        <div className="ann-card-top">
+          <span className="ann-card-badge" style={{ background: c.badge, color: c.badgeText }}>
+            {ANN_LABELS[ann.type] || 'AVISO'}
+          </span>
+          <button className="ann-card-close" onClick={onDismiss}>
+            <Ic.close style={{width:13,height:13}} />
+          </button>
+        </div>
+        <div className="ann-card-title">{ann.title}</div>
+        <div className="ann-card-text">{ann.body}</div>
+
+        {rem && (
+          <div className="ann-countdown">
+            {rem.d > 0 && <div className="ann-cd-unit"><span>{rem.d}</span><em>días</em></div>}
+            <div className="ann-cd-unit"><span>{String(rem.h).padStart(2,'0')}</span><em>hrs</em></div>
+            <div className="ann-cd-unit"><span>{String(rem.m).padStart(2,'0')}</span><em>min</em></div>
+            <div className="ann-cd-unit"><span>{String(rem.s).padStart(2,'0')}</span><em>seg</em></div>
+          </div>
+        )}
+
+        {ann.allow_signup && (
+          <button className={`ann-signup-btn ${signedUp ? 'signed' : ''}`}
+            onClick={toggleSignup} disabled={sigBusy}>
+            {sigBusy ? '…' : signedUp ? '✓ Inscrito — cancelar' : 'Inscribirme →'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AnnouncementBanner({ member }) {
+  const [items,     setItems]     = useState([]);
   const [dismissed, setDismissed] = useState(new Set());
 
   useEffect(() => {
@@ -931,23 +1016,10 @@ function AnnouncementBanner() {
 
   return (
     <div className="ann-banner-stack">
-      {visible.map(a => {
-        const c = ANN_COLORS[a.type] || ANN_COLORS.info;
-        return (
-          <div key={a.id} className="ann-banner" style={{ background: c.bg, borderColor: c.border }}>
-            <div className="ann-banner-left">
-              <span className="ann-banner-badge" style={{ background: c.badge, color: c.text }}>
-                {ANN_LABELS[a.type] || 'AVISO'}
-              </span>
-              <div className="ann-banner-title">{a.title}</div>
-              <div className="ann-banner-body">{a.body}</div>
-            </div>
-            <button className="ann-banner-close" onClick={() => setDismissed(s => new Set([...s, a.id]))}>
-              <Ic.close style={{width:14,height:14}} />
-            </button>
-          </div>
-        );
-      })}
+      {visible.map(a => (
+        <AnnCard key={a.id} ann={a} member={member}
+          onDismiss={() => setDismissed(s => new Set([...s, a.id]))} />
+      ))}
     </div>
   );
 }
@@ -1100,7 +1172,7 @@ function App() {
 
         {screen === 'main' && member && (
           <>
-            <AnnouncementBanner />
+            <AnnouncementBanner member={member} />
             {tab === 'card'     && <CardScreen member={member} cardStyle={tweaks.cardStyle} onOpenQr={()=>setQrOpen(true)} />}
             {tab === 'rewards'  && <RewardsScreen />}
             {tab === 'profile'  && <ProfileScreen member={member} onReset={handleReset} />}

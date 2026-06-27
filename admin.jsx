@@ -449,17 +449,70 @@ const TYPES = [
   { value: 'info',    label: 'Aviso general',   color: '#ffb464' },
 ];
 
-function AnnouncementsScreen() {
-  const [list,    setList]    = useState([]);
+function AnnSignupsModal({ ann, onClose }) {
+  const [signups, setSignups] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [busy,    setBusy]    = useState(false);
-  const [form,    setForm]    = useState({ type: 'torneo', title: '', body: '', expires_at: '' });
-  const [err,     setErr]     = useState(null);
+  useEffect(() => {
+    window.PPSb.getEventSignups(ann.id).then(({ data }) => {
+      setSignups(data || []);
+      setLoading(false);
+    });
+  }, [ann.id]);
+  return (
+    <div className="ann-modal-overlay" onClick={onClose}>
+      <div className="ann-modal" onClick={e => e.stopPropagation()}>
+        <div className="ann-modal-header">
+          <div>
+            <div className="ann-modal-title">{ann.title}</div>
+            <div className="ann-modal-sub">{signups.length} inscripciones</div>
+          </div>
+          <button className="ann-del" onClick={onClose}><Ic.x style={{width:14,height:14}}/></button>
+        </div>
+        {loading && <div className="empty">Cargando…</div>}
+        {!loading && signups.length === 0 && <div className="empty" style={{padding:16}}>Sin inscripciones todavía.</div>}
+        <div className="ann-signup-list">
+          {signups.map((s, i) => (
+            <div key={s.id} className="ann-signup-row">
+              <div className="ann-signup-num">{i + 1}</div>
+              <div>
+                <div className="ann-signup-name">{s.member_name || s.member_id}</div>
+                <div className="ann-signup-id">{s.member_id} · {new Date(s.signed_up_at).toLocaleDateString('es-MX',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AnnouncementsScreen() {
+  const [list,       setList]       = useState([]);
+  const [signupCounts, setSignupCounts] = useState({});
+  const [loading,    setLoading]    = useState(true);
+  const [busy,       setBusy]       = useState(false);
+  const [uploading,  setUploading]  = useState(false);
+  const [viewSignups, setViewSignups] = useState(null);
+  const [form, setForm] = useState({
+    type: 'torneo', title: '', body: '',
+    image_url: '', event_date: '', expires_at: '', allow_signup: false,
+  });
+  const [imgPreview, setImgPreview] = useState(null);
+  const [err, setErr] = useState(null);
+  const fileRef = useRef(null);
 
   function load() {
     if (!window.PPSb) { setLoading(false); return; }
-    window.PPSb.getAnnouncements().then(({ data }) => {
-      setList(data || []);
+    window.PPSb.getAnnouncements().then(async ({ data }) => {
+      const items = data || [];
+      setList(items);
+      // load signup counts for items that allow signup
+      const counts = {};
+      await Promise.all(items.filter(a => a.allow_signup).map(async a => {
+        const { data: s } = await window.PPSb.getEventSignups(a.id);
+        counts[a.id] = (s || []).length;
+      }));
+      setSignupCounts(counts);
       setLoading(false);
     });
   }
@@ -467,20 +520,40 @@ function AnnouncementsScreen() {
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })); setErr(null); }
 
+  async function handleImagePick(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    setImgPreview(URL.createObjectURL(file));
+    setUploading(true);
+    try {
+      const url = await window.PPSb.uploadAnnouncementImage(file);
+      set('image_url', url);
+    } catch(err) {
+      setErr('Error al subir imagen: ' + err.message);
+      setImgPreview(null);
+    } finally {
+      setUploading(false);
+    }
+  }
+
   async function publish(e) {
     e.preventDefault();
     if (!form.title.trim() || !form.body.trim()) { setErr('Título y mensaje son requeridos.'); return; }
     setBusy(true);
     const payload = {
-      title:      form.title.trim(),
-      body:       form.body.trim(),
-      type:       form.type,
-      expires_at: form.expires_at || null,
-      active:     true,
+      title:        form.title.trim(),
+      body:         form.body.trim(),
+      type:         form.type,
+      image_url:    form.image_url || null,
+      event_date:   form.event_date || null,
+      expires_at:   form.expires_at || null,
+      allow_signup: form.allow_signup,
+      active:       true,
     };
     const { error } = await window.PPSb.createAnnouncement(payload);
     if (error) { setErr('Error al publicar: ' + error.message); setBusy(false); return; }
-    setForm({ type: 'torneo', title: '', body: '', expires_at: '' });
+    setForm({ type: 'torneo', title: '', body: '', image_url: '', event_date: '', expires_at: '', allow_signup: false });
+    setImgPreview(null);
     setBusy(false);
     load();
   }
@@ -509,6 +582,24 @@ function AnnouncementsScreen() {
               </button>
             ))}
           </div>
+
+          {/* Image upload */}
+          <div className="ann-img-upload" onClick={() => fileRef.current.click()}>
+            {imgPreview
+              ? <img src={imgPreview} className="ann-img-preview" alt="preview" />
+              : <div className="ann-img-placeholder">
+                  {uploading ? 'Subiendo…' : '＋ Agregar foto (opcional)'}
+                </div>
+            }
+            {imgPreview && !uploading && (
+              <button type="button" className="ann-img-clear"
+                onClick={e => { e.stopPropagation(); setImgPreview(null); set('image_url', ''); }}>
+                <Ic.x style={{width:12,height:12}}/>
+              </button>
+            )}
+          </div>
+          <input ref={fileRef} type="file" accept="image/*" style={{display:'none'}} onChange={handleImagePick} />
+
           <div className="field">
             <label>Título</label>
             <input value={form.title} onChange={e => set('title', e.target.value)}
@@ -517,14 +608,28 @@ function AnnouncementsScreen() {
           <div className="field">
             <label>Mensaje</label>
             <textarea value={form.body} onChange={e => set('body', e.target.value)}
-              placeholder="Inscríbete antes del viernes. Cupo limitado a 16 parejas. Precio especial para socios." rows={3} />
+              placeholder="Inscríbete antes del viernes. Cupo limitado a 16 parejas." rows={3} />
           </div>
-          <div className="field">
-            <label>Mostrar hasta <span style={{opacity:.5, fontWeight:400}}>(opcional)</span></label>
-            <input type="date" value={form.expires_at} onChange={e => set('expires_at', e.target.value)} />
+          <div className="field-row">
+            <div className="field">
+              <label>Fecha del evento <span style={{opacity:.5,fontWeight:400}}>(cuenta regresiva)</span></label>
+              <input type="datetime-local" value={form.event_date} onChange={e => set('event_date', e.target.value)} />
+            </div>
+            <div className="field">
+              <label>Mostrar hasta</label>
+              <input type="date" value={form.expires_at} onChange={e => set('expires_at', e.target.value)} />
+            </div>
           </div>
+
+          <label className="ann-toggle">
+            <input type="checkbox" checked={form.allow_signup}
+              onChange={e => set('allow_signup', e.target.checked)} />
+            <span>Activar botón de inscripción para socios</span>
+          </label>
+
           {err && <p className="field-error">{err}</p>}
-          <button type="submit" className="btn btn-primary" style={{width:'100%'}} disabled={busy || !window.PPSb}>
+          <button type="submit" className="btn btn-primary" style={{width:'100%',marginTop:14}}
+            disabled={busy || uploading || !window.PPSb}>
             {busy ? 'Publicando…' : 'Publicar aviso'}
             {!busy && <Ic.mega style={{width:15,height:15}}/>}
           </button>
@@ -549,15 +654,26 @@ function AnnouncementsScreen() {
           const ti = typeInfo(a.type);
           return (
             <div key={a.id} className="ann-row">
-              <div className="ann-badge" style={{background: ti.color + '22', color: ti.color, borderColor: ti.color + '44'}}>
-                {ti.label.toUpperCase()}
-              </div>
-              <div className="ann-body">
-                <div className="ann-title">{a.title}</div>
-                <div className="ann-msg">{a.body}</div>
-                {a.expires_at && (
-                  <div className="ann-exp">Hasta {new Date(a.expires_at).toLocaleDateString('es-MX',{day:'2-digit',month:'short'})}</div>
-                )}
+              {a.image_url && <img src={a.image_url} className="ann-row-img" alt="" />}
+              <div className="ann-row-main">
+                <div style={{display:'flex', alignItems:'center', gap:6, marginBottom:4}}>
+                  <div className="ann-badge" style={{background: ti.color+'22', color: ti.color, borderColor: ti.color+'44'}}>
+                    {ti.label.toUpperCase()}
+                  </div>
+                  {a.allow_signup && (
+                    <button className="ann-signup-count" onClick={() => setViewSignups(a)}>
+                      {signupCounts[a.id] || 0} inscripciones →
+                    </button>
+                  )}
+                </div>
+                <div className="ann-body">
+                  <div className="ann-title">{a.title}</div>
+                  <div className="ann-msg">{a.body}</div>
+                  <div style={{display:'flex', gap:10, marginTop:4, flexWrap:'wrap'}}>
+                    {a.event_date && <div className="ann-exp">📅 {new Date(a.event_date).toLocaleDateString('es-MX',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</div>}
+                    {a.expires_at && <div className="ann-exp">Hasta {new Date(a.expires_at).toLocaleDateString('es-MX',{day:'2-digit',month:'short'})}</div>}
+                  </div>
+                </div>
               </div>
               <button className="ann-del" onClick={() => remove(a.id)} aria-label="Eliminar">
                 <Ic.x style={{width:14,height:14}}/>
@@ -566,6 +682,8 @@ function AnnouncementsScreen() {
           );
         })}
       </div>
+
+      {viewSignups && <AnnSignupsModal ann={viewSignups} onClose={() => { setViewSignups(null); load(); }} />}
     </div>
   );
 }
