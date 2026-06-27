@@ -744,6 +744,13 @@ function CardScreen({ member, cardStyle, onOpenQr }) {
           </button>
         </div>
 
+        <div className="notice-box">
+          <Ic.shield style={{width:18, height:18, flexShrink:0}} />
+          <div>
+            <strong>Guardada en la nube.</strong> Accede desde cualquier dispositivo con tu correo y contraseña.
+          </div>
+        </div>
+
         {/* ── Visits & promotions ── */}
         {visitsReady && (
           <div className="visits-block">
@@ -788,13 +795,6 @@ function CardScreen({ member, cardStyle, onOpenQr }) {
             )}
           </div>
         )}
-
-        <div className="notice-box">
-          <Ic.shield style={{width:18, height:18, flexShrink:0}} />
-          <div>
-            <strong>Guardada en la nube.</strong> Accede desde cualquier dispositivo con tu correo y contraseña.
-          </div>
-        </div>
       </div>
 
       {/* Off-screen, full-quality wallet card used for the PNG export */}
