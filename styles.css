@@ -816,7 +816,7 @@ input, textarea, select { font-family: inherit; }
 
 /* Card screen */
 .card-screen {
-  padding: 8px 22px 22px;
+  padding: 8px 22px 90px;
 }
 .welcome-line {
   font-size: 13px;
@@ -1388,7 +1388,8 @@ input, textarea, select { font-family: inherit; }
 .visits-block {
   background: var(--navy);
   border-radius: 16px;
-  padding: 16px;
+  padding: 18px;
+  margin-top: 20px;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -1398,6 +1399,7 @@ input, textarea, select { font-family: inherit; }
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  padding-bottom: 4px;
 }
 .vb-count {
   display: flex;
