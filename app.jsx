@@ -187,18 +187,59 @@ function WinnersCarousel() {
 }
 
 // ──────────────────────────────────────────────────────────────
+// Easter egg modal
+// ──────────────────────────────────────────────────────────────
+function EasterEgg({ onClose }) {
+  return (
+    <div className="ee-overlay" onClick={onClose}>
+      <div className="ee-card" onClick={e => e.stopPropagation()}>
+        <div className="ee-logo">
+          <img src="assets/logo-navy.jpg" alt="PP" />
+        </div>
+        <div className="ee-name">Padel Park Gran Jardín</div>
+        <div className="ee-version">v2.0 · Tarjeta de Lealtad</div>
+        <div className="ee-divider" />
+        <div className="ee-made">Desarrollado por</div>
+        <div className="ee-creator">ProcesaLab</div>
+        <div className="ee-sub">by EAJDR</div>
+        <button className="ee-close" onClick={onClose}>Cerrar</button>
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
 // TopBar
 // ──────────────────────────────────────────────────────────────
 function TopBar({ right }) {
+  const [taps,    setTaps]    = useState(0);
+  const [showEgg, setShowEgg] = useState(false);
+  const resetRef = useRef(null);
+
+  function handleLogoTap() {
+    clearTimeout(resetRef.current);
+    const next = taps + 1;
+    if (next >= 6) {
+      setTaps(0);
+      setShowEgg(true);
+    } else {
+      setTaps(next);
+      resetRef.current = setTimeout(() => setTaps(0), 1800);
+    }
+  }
+
   return (
-    <div className="topbar">
-      <div className="brand">
-        <div className="logo-pill">
-          <img src="assets/logo-navy.jpg" alt="Padel Park Gran Jardín" />
+    <>
+      <div className="topbar">
+        <div className="brand">
+          <div className="logo-pill" onClick={handleLogoTap} style={{cursor:'pointer'}}>
+            <img src="assets/logo-navy.jpg" alt="Padel Park Gran Jardín" />
+          </div>
         </div>
+        <div className="right">{right || ''}</div>
       </div>
-      <div className="right">{right || ''}</div>
-    </div>
+      {showEgg && <EasterEgg onClose={() => setShowEgg(false)} />}
+    </>
   );
 }
 
