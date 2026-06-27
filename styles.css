@@ -1378,6 +1378,24 @@ input, textarea, select { font-family: inherit; }
   background: rgba(184, 242, 74, 0.2);
   border-color: var(--lime-deep);
 }
+.footer-wa {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #128c47;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  padding: 9px 16px;
+  border-radius: 999px;
+  border: 1px solid #d0eedd;
+  background: #f0faf4;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.footer-wa:hover {
+  background: #d6f4e4;
+  border-color: #128c47;
+}
 .footer-copy {
   font-size: 11px;
   color: rgba(14, 29, 87, 0.4);

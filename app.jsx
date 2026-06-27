@@ -462,6 +462,18 @@ function Welcome({ onStart, onLogin }) {
           </svg>
           @padel_park_granjardin
         </a>
+        <a
+          href="https://wa.me/524773944948"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="footer-wa"
+        >
+          <svg viewBox="0 0 24 24" fill="none" width="18" height="18">
+            <path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.978-1.41A9.96 9.96 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round"/>
+            <path d="M8.5 9.5c.5 1 1.5 3 3.5 4.5s3.5 1.5 4 1.5c0-.5-.5-1.5-1-2l-1-.5c-.5 0-1 .5-1.5.5C11 13 10 11.5 9.5 10.5L9 9.5C9 9 9.5 8.5 9.5 8s-.5-1-.5-1.5C8 6.5 7.5 8 7.5 8.5s.5.5 1 1z" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          477 394 4948
+        </a>
         <div className="footer-copy">© {new Date().getFullYear()} Padel Park Gran Jardín · León, Gto</div>
       </footer>
       <InstallPrompt />
