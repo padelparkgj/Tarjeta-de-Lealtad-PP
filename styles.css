@@ -55,6 +55,7 @@ input, textarea, select { font-family: inherit; }
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  padding-top: env(safe-area-inset-top);
 }
 @media (min-width: 720px) {
   .phone {
@@ -81,7 +82,7 @@ input, textarea, select { font-family: inherit; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: max(18px, calc(env(safe-area-inset-top) + 10px)) 22px 6px;
+  padding: 18px 22px 6px;
 }
 .topbar .brand {
   display: flex;
