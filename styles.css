@@ -55,6 +55,7 @@ input, textarea, select { font-family: inherit; }
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  padding-top: env(safe-area-inset-top);
 }
 @media (min-width: 720px) {
   .phone {
