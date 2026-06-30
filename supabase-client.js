@@ -33,6 +33,11 @@
     getMemberByMemberId(memberId) {
       return sb.from('members').select('*').eq('member_id', memberId).single();
     },
+    getAllMembers() {
+      return sb.from('members')
+        .select('*')
+        .order('joined_at', { ascending: false });
+    },
 
     // ── Visits table ──────────────────────────────────────────
     logVisit(memberId, memberName, court) {
@@ -52,7 +57,10 @@
       return sb.from('visits')
         .select('*')
         .order('visited_at', { ascending: false })
-        .limit(200);
+        .limit(500);
+    },
+    deleteVisit(id) {
+      return sb.from('visits').delete().eq('id', id);
     },
 
     // ── Announcements table ───────────────────────────────────
@@ -62,6 +70,9 @@
         .eq('active', true)
         .or('expires_at.is.null,expires_at.gt.' + new Date().toISOString())
         .order('created_at', { ascending: false });
+    },
+    getAnnouncementsByIds(ids) {
+      return sb.from('announcements').select('id, title, type, event_date').in('id', ids);
     },
     createAnnouncement(data) {
       return sb.from('announcements').insert(data);
@@ -95,7 +106,7 @@
         .eq('member_id', memberId);
     },
     getMemberSignups(memberId) {
-      return sb.from('signups').select('announcement_id').eq('member_id', memberId);
+      return sb.from('signups').select('*').eq('member_id', memberId).order('signed_up_at', { ascending: false });
     },
     getEventSignups(announcementId) {
       return sb.from('signups').select('*')

@@ -56,6 +56,9 @@ const Ic = {
   gift:   p => <svg viewBox="0 0 24 24" fill="none" {...p}><rect x="3" y="8" width="18" height="13" rx="1" stroke="currentColor" strokeWidth="1.6"/><path d="M12 8v13M3 12h18" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/><path d="M12 8c0-2 1.5-4 3-4s2 1.5 0 4M12 8c0-2-1.5-4-3-4S7 5.5 9 8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>,
   bolt:   p => <svg viewBox="0 0 24 24" fill="none" {...p}><path d="M13 2L4.5 13.5H12L11 22l8.5-11.5H12L13 2z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/></svg>,
   cake:   p => <svg viewBox="0 0 24 24" fill="none" {...p}><rect x="2" y="10" width="20" height="10" rx="2" stroke="currentColor" strokeWidth="1.6"/><path d="M7 10V8M12 10V8M17 10V8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/><path d="M7 6a1 1 0 100-2 1 1 0 000 2zM12 6a1 1 0 100-2 1 1 0 000 2zM17 6a1 1 0 100-2 1 1 0 000 2z" fill="currentColor"/></svg>,
+  user:   p => <svg viewBox="0 0 24 24" fill="none" {...p}><circle cx="12" cy="8" r="4" stroke="currentColor" strokeWidth="1.6"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>,
+  trash:  p => <svg viewBox="0 0 24 24" fill="none" {...p}><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>,
+  search: p => <svg viewBox="0 0 24 24" fill="none" {...p}><circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="1.6"/><path d="M16.5 16.5L21 21" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>,
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -254,10 +257,13 @@ function MemberPanel({ member, visitCount, court, onConfirm, onCancel }) {
 function SavedScreen({ member, newTotal, onContinue }) {
   const toFree   = 6 - (newTotal % 6);
   const toSilver = 3 - (newTotal % 3);
-  const nextIsFree   = toFree <= toSilver;
-  const nextLabel    = nextIsFree
+  const nextIsFree = toFree <= toSilver;
+  const nextLabel  = nextIsFree
     ? `${toFree} visita${toFree!==1?'s':''} para cancha GRATIS`
     : `${toSilver} visita${toSilver!==1?'s':''} para precio Silver`;
+
+  const isFreeMilestone   = newTotal > 0 && newTotal % 6 === 0;
+  const isSilverMilestone = newTotal > 0 && newTotal % 3 === 0 && !isFreeMilestone;
 
   return (
     <div className="scan-result fade-in">
@@ -265,7 +271,21 @@ function SavedScreen({ member, newTotal, onContinue }) {
       <div className="srl">¡Visita registrada!</div>
       <div className="srn">{member?.name || member?.member_id}</div>
       <div className="srid">Visita #{newTotal}</div>
-      <div className="sr-next">{nextLabel}</div>
+
+      {isFreeMilestone && (
+        <div className="sr-milestone sr-milestone-free">
+          🎉 ¡Cancha GRATIS desbloqueada!
+        </div>
+      )}
+      {isSilverMilestone && (
+        <div className="sr-milestone sr-milestone-silver">
+          ⚡ ¡Precio Silver desbloqueado!
+        </div>
+      )}
+      {!isFreeMilestone && !isSilverMilestone && (
+        <div className="sr-next">{nextLabel}</div>
+      )}
+
       <button className="btn btn-primary" onClick={onContinue}>
         Escanear siguiente <Ic.arrow style={{width:16,height:16}}/>
       </button>
@@ -388,19 +408,49 @@ function ScannerScreen() {
 // ─────────────────────────────────────────────────────────────
 // Log screen — loads visits from Supabase
 // ─────────────────────────────────────────────────────────────
-function LogScreen() {
+const LOG_FILTERS = [
+  { k: 'today', l: 'Hoy' },
+  { k: 'week',  l: 'Semana' },
+  { k: 'month', l: 'Mes' },
+  { k: 'all',   l: 'Todo' },
+];
+
+function filterVisits(visits, filter) {
+  const now = new Date();
+  if (filter === 'today') return visits.filter(v => isToday(v.visited_at));
+  if (filter === 'week') {
+    const wk = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    return visits.filter(v => new Date(v.visited_at) >= wk);
+  }
+  if (filter === 'month') {
+    const mo = new Date(now.getFullYear(), now.getMonth(), 1);
+    return visits.filter(v => new Date(v.visited_at) >= mo);
+  }
+  return visits;
+}
+
+function LogScreen({ onViewMember }) {
   const [visits,  setVisits]  = useState([]);
   const [loading, setLoading] = useState(true);
+  const [filter,  setFilter]  = useState('today');
 
-  useEffect(() => {
+  function load() {
     if (!window.PPSb) { setLoading(false); return; }
     window.PPSb.getAllVisits().then(({ data }) => {
       setVisits(data || []);
       setLoading(false);
     });
-  }, []);
+  }
+  useEffect(load, []);
 
-  const today = visits.filter(v => isToday(v.visited_at));
+  async function deleteVisit(id) {
+    if (!window.PPSb) return;
+    await window.PPSb.deleteVisit(id);
+    setVisits(vs => vs.filter(v => v.id !== id));
+  }
+
+  const today    = visits.filter(v => isToday(v.visited_at));
+  const filtered = filterVisits(visits, filter);
 
   return (
     <div className="log-screen">
@@ -414,26 +464,243 @@ function LogScreen() {
         </div>
       </div>
 
-      {loading && <div className="empty">Cargando…</div>}
+      <div className="log-filters">
+        {LOG_FILTERS.map(f => (
+          <button key={f.k} className={`log-filter-pill ${filter===f.k?'active':''}`} onClick={() => setFilter(f.k)}>
+            {f.l}
+          </button>
+        ))}
+      </div>
 
-      {!loading && visits.length === 0 && (
+      {loading && <div className="empty">Cargando…</div>}
+      {!loading && filtered.length === 0 && (
         <div className="empty">
           <Ic.log style={{width:32,height:32,opacity:0.3,marginBottom:10}}/>
-          <div>Sin visitas todavía.</div>
+          <div>Sin visitas en este periodo.</div>
         </div>
       )}
 
       <div className="log-list">
-        {visits.map(v => (
-          <div key={v.id} className="log-row">
+        {filtered.map(v => (
+          <div key={v.id} className="log-row" style={{cursor:'pointer'}} onClick={() => onViewMember && onViewMember(v.member_id)}>
             <div className="log-court">{v.court||'—'}</div>
             <div className="log-body">
               <div className="log-name">{v.member_name || v.member_id}</div>
               <div className="log-sub">{v.member_id} · {fmtDate(v.visited_at)}</div>
             </div>
-            <div className="log-status">
-              <span className="ok">✓ Supabase</span>
+            <button
+              className="log-del-btn"
+              title="Eliminar registro"
+              onClick={e => { e.stopPropagation(); deleteVisit(v.id); }}
+            >
+              <Ic.trash style={{width:14,height:14}}/>
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Member profile modal — visit history + event signups
+// ─────────────────────────────────────────────────────────────
+function MemberProfileModal({ memberId, onClose }) {
+  const [member,   setMember]   = useState(null);
+  const [visits,   setVisits]   = useState([]);
+  const [signups,  setSignups]  = useState([]);
+  const [annMap,   setAnnMap]   = useState({});
+  const [loading,  setLoading]  = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      if (!window.PPSb) { setLoading(false); return; }
+      const [mRes, vRes, sRes] = await Promise.all([
+        window.PPSb.getMemberByMemberId(memberId),
+        window.PPSb.getMemberVisits(memberId),
+        window.PPSb.getMemberSignups(memberId),
+      ]);
+      setMember(mRes.data);
+      setVisits(vRes.data || []);
+      const sData = sRes.data || [];
+      setSignups(sData);
+      if (sData.length > 0) {
+        const ids = sData.map(s => s.announcement_id).filter(Boolean);
+        if (ids.length > 0) {
+          const { data: anns } = await window.PPSb.getAnnouncementsByIds(ids);
+          const map = {};
+          (anns || []).forEach(a => { map[a.id] = a; });
+          setAnnMap(map);
+        }
+      }
+      setLoading(false);
+    }
+    load();
+  }, [memberId]);
+
+  const totalVisits = visits.length;
+  const cycleFilled = totalVisits % 6;
+  const birth = member?.birth ? new Date(member.birth + 'T00:00:00').toLocaleDateString('es-MX',{day:'2-digit',month:'short'}) : null;
+  const joined = member?.joined_at ? new Date(member.joined_at).toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}) : null;
+
+  return (
+    <div className="mp-modal-overlay" onClick={onClose}>
+      <div className="mp-modal" onClick={e => e.stopPropagation()}>
+        <div className="mp-modal-header">
+          <div className="mp-modal-avatar">{initials(member?.name || memberId)}</div>
+          <div className="mp-modal-info">
+            {loading ? <div className="mp-modal-name">Cargando…</div> : <>
+              <div className="mp-modal-name">{member?.name || memberId}</div>
+              <div className="mp-modal-meta">{member?.member_id || memberId}{member?.level ? ` · ${member.level}` : ''}</div>
+            </>}
+          </div>
+          <button className="ann-del" onClick={onClose}><Ic.x style={{width:14,height:14}}/></button>
+        </div>
+
+        {!loading && member && (
+          <div className="mp-modal-body">
+            {/* Stats row */}
+            <div className="mp-modal-stats">
+              <div className="mp-stat">
+                <strong>{totalVisits}</strong>
+                <span>Visitas</span>
+              </div>
+              <div className="mp-stat">
+                <strong>{Math.floor(totalVisits / 6)}</strong>
+                <span>Canchas gratis</span>
+              </div>
+              <div className="mp-stat">
+                <strong>{Math.floor(totalVisits / 3)}</strong>
+                <span>Silvers</span>
+              </div>
             </div>
+
+            {/* Cycle */}
+            <div className="mp-modal-cycle">
+              {[1,2,3,4,5,6].map(i => (
+                <div key={i} className={`cycle-dot ${i<=cycleFilled?'filled':''} ${i===3?'mark-silver':''} ${i===6?'mark-free':''}`}/>
+              ))}
+            </div>
+
+            {/* Details */}
+            <div className="mp-modal-details">
+              {birth && <div className="mp-detail-row"><span>Cumpleaños</span><strong>{birth}</strong></div>}
+              {member.phone && <div className="mp-detail-row"><span>Teléfono</span><strong>{member.phone}</strong></div>}
+              {joined && <div className="mp-detail-row"><span>Miembro desde</span><strong>{joined}</strong></div>}
+              {isBirthdayMonth(member.birth) && (
+                <div className="mp-detail-row" style={{color:'#b97b00'}}>
+                  <span>🎂 Mes de cumpleaños</span>
+                </div>
+              )}
+            </div>
+
+            {/* Event signups */}
+            {signups.length > 0 && (
+              <>
+                <div className="mp-section-title">Torneos inscritos</div>
+                <div className="mp-signup-list">
+                  {signups.map(s => {
+                    const ann = annMap[s.announcement_id];
+                    return (
+                      <div key={s.id} className="mp-signup-row">
+                        <div className="mp-signup-name">{ann?.title || s.announcement_id}</div>
+                        <div className="mp-signup-date">
+                          {new Date(s.signed_up_at).toLocaleDateString('es-MX',{day:'2-digit',month:'short'})}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
+            {/* Visit history */}
+            <div className="mp-section-title">Historial de visitas ({totalVisits})</div>
+            {visits.length === 0 && <div className="empty" style={{padding:'8px 0'}}>Sin visitas registradas.</div>}
+            <div className="mp-visit-list">
+              {visits.map((v, i) => {
+                const visitNum = totalVisits - i;
+                const promo = promoFor(visitNum);
+                return (
+                  <div key={v.id} className="mp-visit-row">
+                    <div className="mp-visit-num">{visitNum}</div>
+                    <div className="mp-visit-info">
+                      <div className="mp-visit-date">{fmtDate(v.visited_at)}</div>
+                      {v.court && <div className="mp-visit-court">Cancha {v.court}</div>}
+                    </div>
+                    {promo === 'free'   && <div className="mp-promo-tag tag-free">GRATIS</div>}
+                    {promo === 'silver' && <div className="mp-promo-tag tag-silver">SILVER</div>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Members screen — list of all members
+// ─────────────────────────────────────────────────────────────
+function MembersScreen({ onViewMember }) {
+  const [members, setMembers] = useState([]);
+  const [search,  setSearch]  = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!window.PPSb) { setLoading(false); return; }
+    window.PPSb.getAllMembers().then(({ data }) => {
+      setMembers(data || []);
+      setLoading(false);
+    });
+  }, []);
+
+  const filtered = members.filter(m =>
+    !search ||
+    (m.name  || '').toLowerCase().includes(search.toLowerCase()) ||
+    (m.member_id || '').toLowerCase().includes(search.toLowerCase()) ||
+    (m.email || '').toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="members-screen">
+      <div className="members-header">
+        <h2>Socios</h2>
+        <div className="members-count">{members.length} registrados</div>
+      </div>
+
+      <div className="search-wrap">
+        <Ic.search style={{width:16,height:16,opacity:.4,flexShrink:0}}/>
+        <input
+          className="search-input"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Buscar por nombre, ID o correo…"
+        />
+        {search && (
+          <button style={{opacity:.5}} onClick={() => setSearch('')}><Ic.x style={{width:14,height:14}}/></button>
+        )}
+      </div>
+
+      {loading && <div className="empty">Cargando…</div>}
+      {!loading && filtered.length === 0 && (
+        <div className="empty">
+          <Ic.user style={{width:32,height:32,opacity:.25,marginBottom:8}}/>
+          <div>{search ? 'Sin resultados.' : 'Sin socios registrados.'}</div>
+        </div>
+      )}
+
+      <div className="member-list">
+        {filtered.map(m => (
+          <div key={m.id} className="member-row" onClick={() => onViewMember(m.member_id)}>
+            <div className="member-avatar">{initials(m.name)}</div>
+            <div className="member-row-info">
+              <div className="member-row-name">{m.name}</div>
+              <div className="member-row-meta">{m.member_id}{m.level ? ` · ${m.level}` : ''}</div>
+            </div>
+            <Ic.arrow style={{width:15,height:15,opacity:.3,flexShrink:0}}/>
           </div>
         ))}
       </div>
@@ -560,6 +827,7 @@ function AnnouncementsScreen() {
     setForm({ type: 'torneo', title: '', body: '', image_url: '', event_date: '', expires_at: '', allow_signup: false });
     setImgPreview(null);
     setErr(null);
+    if (fileRef.current) fileRef.current.value = '';
   }
 
   async function publish(e) {
@@ -770,8 +1038,9 @@ function SettingsScreen({ onLogout }) {
 // AdminApp shell
 // ─────────────────────────────────────────────────────────────
 function AdminApp() {
-  const [authed, setAuthed] = useState(() => localStorage.getItem(ADMIN_AUTH_KEY) === '1');
-  const [tab, setTab] = useState('scan');
+  const [authed,       setAuthed]       = useState(() => localStorage.getItem(ADMIN_AUTH_KEY) === '1');
+  const [tab,          setTab]          = useState('scan');
+  const [viewMemberId, setViewMemberId] = useState(null);
 
   function logout() { localStorage.removeItem(ADMIN_AUTH_KEY); setAuthed(false); }
 
@@ -796,7 +1065,8 @@ function AdminApp() {
 
       <div className="admin-body">
         {tab==='scan'     && <ScannerScreen/>}
-        {tab==='log'      && <LogScreen/>}
+        {tab==='log'      && <LogScreen onViewMember={setViewMemberId}/>}
+        {tab==='socios'   && <MembersScreen onViewMember={setViewMemberId}/>}
         {tab==='avisos'   && <AnnouncementsScreen/>}
         {tab==='settings' && <SettingsScreen onLogout={logout}/>}
       </div>
@@ -808,6 +1078,9 @@ function AdminApp() {
         <button className={`atab ${tab==='log'?'active':''}`}      onClick={()=>setTab('log')}>
           <Ic.log/><span>Historial</span>
         </button>
+        <button className={`atab ${tab==='socios'?'active':''}`}   onClick={()=>setTab('socios')}>
+          <Ic.user/><span>Socios</span>
+        </button>
         <button className={`atab ${tab==='avisos'?'active':''}`}   onClick={()=>setTab('avisos')}>
           <Ic.mega/><span>Avisos</span>
         </button>
@@ -815,6 +1088,10 @@ function AdminApp() {
           <Ic.cog/><span>Ajustes</span>
         </button>
       </div>
+
+      {viewMemberId && (
+        <MemberProfileModal memberId={viewMemberId} onClose={() => setViewMemberId(null)}/>
+      )}
     </div>
   );
 }
