@@ -837,13 +837,15 @@ function CardScreen({ member, cardStyle, onOpenQr }) {
             </div>
 
             {nextPromo === 'free' && (
-              <div className="vb-promo promo-free">
-                🎉 ¡Tu próxima visita es <strong>GRATIS</strong>!
+              <div className="vb-milestone milestone-free">
+                🎉 <strong>¡Cancha GRATIS desbloqueada!</strong><br/>
+                <span>Tu siguiente visita es completamente gratis</span>
               </div>
             )}
             {nextPromo === 'silver' && (
-              <div className="vb-promo promo-silver">
-                ⚡ Tu próxima visita aplica <strong>precio Silver</strong>
+              <div className="vb-milestone milestone-silver">
+                ⚡ <strong>¡Precio Silver desbloqueado!</strong><br/>
+                <span>Tu siguiente visita tiene tarifa preferencial</span>
               </div>
             )}
             {!nextPromo && totalVisits > 0 && (
@@ -921,6 +923,12 @@ function RewardsScreen() {
             </div>
           </div>
         ))}
+
+        <div className="rewards-note">
+          <div className="rn-title">¿Cómo funciona el conteo?</div>
+          <p>Cada visita que realizas acumula un sello. Al llegar a <strong>3 sellos</strong> la siguiente visita tiene <strong>precio Silver</strong>; al llegar a <strong>6 sellos</strong> la siguiente visita es <strong>completamente gratis</strong>.</p>
+          <p>La visita con precio Silver (la 4ª) y la visita gratis (la 7ª) <strong>no suman sello</strong> al ciclo. El conteo continúa desde donde terminó el ciclo anterior.</p>
+        </div>
       </div>
     </div>
   );
