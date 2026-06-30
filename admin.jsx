@@ -482,7 +482,7 @@ function LogScreen({ onViewMember }) {
 
       <div className="log-list">
         {filtered.map(v => (
-          <div key={v.id} className="log-row" style={{cursor:'pointer'}} onClick={() => onViewMember && onViewMember(v.member_id)}>
+          <div key={v.id} className="log-row" style={{cursor:'pointer'}} onClick={() => onViewMember && onViewMember(v.member_id, v.member_name)}>
             <div className="log-court">{v.court||'—'}</div>
             <div className="log-body">
               <div className="log-name">{v.member_name || v.member_id}</div>
@@ -505,7 +505,7 @@ function LogScreen({ onViewMember }) {
 // ─────────────────────────────────────────────────────────────
 // Member profile modal — visit history + event signups
 // ─────────────────────────────────────────────────────────────
-function MemberProfileModal({ memberId, onClose }) {
+function MemberProfileModal({ memberId, memberName: fallbackName, onClose }) {
   const [member,   setMember]   = useState(null);
   const [visits,   setVisits]   = useState([]);
   const [signups,  setSignups]  = useState([]);
@@ -520,7 +520,7 @@ function MemberProfileModal({ memberId, onClose }) {
         window.PPSb.getMemberVisits(memberId),
         window.PPSb.getMemberSignups(memberId),
       ]);
-      setMember(mRes.data);
+      setMember(mRes.data || null);
       setVisits(vRes.data || []);
       const sData = sRes.data || [];
       setSignups(sData);
@@ -538,41 +538,39 @@ function MemberProfileModal({ memberId, onClose }) {
     load();
   }, [memberId]);
 
-  const totalVisits = visits.length;
-  const cycleFilled = totalVisits % 6;
-  const birth = member?.birth ? new Date(member.birth + 'T00:00:00').toLocaleDateString('es-MX',{day:'2-digit',month:'short'}) : null;
+  const displayName  = member?.name || fallbackName || memberId;
+  const totalVisits  = visits.length;
+  const cycleFilled  = totalVisits % 6;
+  const birth  = member?.birth    ? new Date(member.birth + 'T00:00:00').toLocaleDateString('es-MX',{day:'2-digit',month:'short'}) : null;
   const joined = member?.joined_at ? new Date(member.joined_at).toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}) : null;
 
   return (
     <div className="mp-modal-overlay" onClick={onClose}>
       <div className="mp-modal" onClick={e => e.stopPropagation()}>
         <div className="mp-modal-header">
-          <div className="mp-modal-avatar">{initials(member?.name || memberId)}</div>
+          <div className="mp-modal-avatar">{initials(displayName)}</div>
           <div className="mp-modal-info">
-            {loading ? <div className="mp-modal-name">Cargando…</div> : <>
-              <div className="mp-modal-name">{member?.name || memberId}</div>
-              <div className="mp-modal-meta">{member?.member_id || memberId}{member?.level ? ` · ${member.level}` : ''}</div>
-            </>}
+            {loading
+              ? <div className="mp-modal-name">Cargando…</div>
+              : <>
+                  <div className="mp-modal-name">{displayName}</div>
+                  <div className="mp-modal-meta">
+                    {member?.member_id || memberId}
+                    {member?.level ? ` · ${member.level}` : ''}
+                  </div>
+                </>
+            }
           </div>
           <button className="ann-del" onClick={onClose}><Ic.x style={{width:14,height:14}}/></button>
         </div>
 
-        {!loading && member && (
+        {!loading && (
           <div className="mp-modal-body">
-            {/* Stats row */}
+            {/* Stats */}
             <div className="mp-modal-stats">
-              <div className="mp-stat">
-                <strong>{totalVisits}</strong>
-                <span>Visitas</span>
-              </div>
-              <div className="mp-stat">
-                <strong>{Math.floor(totalVisits / 6)}</strong>
-                <span>Canchas gratis</span>
-              </div>
-              <div className="mp-stat">
-                <strong>{Math.floor(totalVisits / 3)}</strong>
-                <span>Silvers</span>
-              </div>
+              <div className="mp-stat"><strong>{totalVisits}</strong><span>Visitas</span></div>
+              <div className="mp-stat"><strong>{Math.floor(totalVisits/6)}</strong><span>Canchas gratis</span></div>
+              <div className="mp-stat"><strong>{Math.floor(totalVisits/3)}</strong><span>Silvers</span></div>
             </div>
 
             {/* Cycle */}
@@ -582,17 +580,18 @@ function MemberProfileModal({ memberId, onClose }) {
               ))}
             </div>
 
-            {/* Details */}
-            <div className="mp-modal-details">
-              {birth && <div className="mp-detail-row"><span>Cumpleaños</span><strong>{birth}</strong></div>}
-              {member.phone && <div className="mp-detail-row"><span>Teléfono</span><strong>{member.phone}</strong></div>}
-              {joined && <div className="mp-detail-row"><span>Miembro desde</span><strong>{joined}</strong></div>}
-              {isBirthdayMonth(member.birth) && (
-                <div className="mp-detail-row" style={{color:'#b97b00'}}>
-                  <span>🎂 Mes de cumpleaños</span>
-                </div>
-              )}
-            </div>
+            {/* Member details (only if loaded from DB) */}
+            {member && (
+              <div className="mp-modal-details">
+                {birth  && <div className="mp-detail-row"><span>Cumpleaños</span><strong>{birth}</strong></div>}
+                {member.phone  && <div className="mp-detail-row"><span>Teléfono</span><strong>{member.phone}</strong></div>}
+                {member.email  && <div className="mp-detail-row"><span>Correo</span><strong style={{fontSize:11}}>{member.email}</strong></div>}
+                {joined && <div className="mp-detail-row"><span>Miembro desde</span><strong>{joined}</strong></div>}
+                {isBirthdayMonth(member.birth) && (
+                  <div className="mp-detail-row" style={{color:'#b97b00'}}><span>🎂 Mes de cumpleaños</span></div>
+                )}
+              </div>
+            )}
 
             {/* Event signups */}
             {signups.length > 0 && (
@@ -694,7 +693,7 @@ function MembersScreen({ onViewMember }) {
 
       <div className="member-list">
         {filtered.map(m => (
-          <div key={m.id} className="member-row" onClick={() => onViewMember(m.member_id)}>
+          <div key={m.id} className="member-row" onClick={() => onViewMember(m.member_id, m.name)}>
             <div className="member-avatar">{initials(m.name)}</div>
             <div className="member-row-info">
               <div className="member-row-name">{m.name}</div>
@@ -1038,9 +1037,9 @@ function SettingsScreen({ onLogout }) {
 // AdminApp shell
 // ─────────────────────────────────────────────────────────────
 function AdminApp() {
-  const [authed,       setAuthed]       = useState(() => localStorage.getItem(ADMIN_AUTH_KEY) === '1');
-  const [tab,          setTab]          = useState('scan');
-  const [viewMemberId, setViewMemberId] = useState(null);
+  const [authed,      setAuthed]      = useState(() => localStorage.getItem(ADMIN_AUTH_KEY) === '1');
+  const [tab,         setTab]         = useState('scan');
+  const [viewMember,  setViewMember]  = useState(null); // { id, name }
 
   function logout() { localStorage.removeItem(ADMIN_AUTH_KEY); setAuthed(false); }
 
@@ -1065,8 +1064,8 @@ function AdminApp() {
 
       <div className="admin-body">
         {tab==='scan'     && <ScannerScreen/>}
-        {tab==='log'      && <LogScreen onViewMember={setViewMemberId}/>}
-        {tab==='socios'   && <MembersScreen onViewMember={setViewMemberId}/>}
+        {tab==='log'      && <LogScreen onViewMember={(id, name) => setViewMember({id, name})}/>}
+        {tab==='socios'   && <MembersScreen onViewMember={(id, name) => setViewMember({id, name})}/>}
         {tab==='avisos'   && <AnnouncementsScreen/>}
         {tab==='settings' && <SettingsScreen onLogout={logout}/>}
       </div>
@@ -1089,8 +1088,12 @@ function AdminApp() {
         </button>
       </div>
 
-      {viewMemberId && (
-        <MemberProfileModal memberId={viewMemberId} onClose={() => setViewMemberId(null)}/>
+      {viewMember && (
+        <MemberProfileModal
+          memberId={viewMember.id}
+          memberName={viewMember.name}
+          onClose={() => setViewMember(null)}
+        />
       )}
     </div>
   );
