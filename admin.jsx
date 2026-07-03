@@ -252,6 +252,38 @@ function MemberPanel({ member, visitCount, court, onConfirm, onCancel }) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Confetti celebration overlay
+// ─────────────────────────────────────────────────────────────
+function ConfettiEffect() {
+  const [visible, setVisible] = useState(true);
+  useEffect(() => {
+    const t = setTimeout(() => setVisible(false), 2800);
+    return () => clearTimeout(t);
+  }, []);
+  if (!visible) return null;
+  const pieces = Array.from({ length: 28 }, (_, i) => ({
+    id: i,
+    x: Math.random() * 100,
+    delay: Math.random() * 0.6,
+    color: ['#b8f24a', '#fff', '#7adcf0', '#ffb464'][i % 4],
+    size: 6 + Math.random() * 6,
+  }));
+  return (
+    <div className="confetti-wrap">
+      {pieces.map(p => (
+        <div key={p.id} className="confetti-piece" style={{
+          left: p.x + '%',
+          '--delay': p.delay + 's',
+          '--color': p.color,
+          width: p.size + 'px',
+          height: p.size + 'px',
+        }}/>
+      ))}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // Saved screen — shown after confirming visit
 // ─────────────────────────────────────────────────────────────
 function SavedScreen({ member, newTotal, onContinue }) {
@@ -285,6 +317,8 @@ function SavedScreen({ member, newTotal, onContinue }) {
       {!isFreeMilestone && !isSilverMilestone && (
         <div className="sr-next">{nextLabel}</div>
       )}
+
+      {(isFreeMilestone || isSilverMilestone) && <ConfettiEffect />}
 
       <button className="btn btn-primary" onClick={onContinue}>
         Escanear siguiente <Ic.arrow style={{width:16,height:16}}/>
@@ -1034,6 +1068,41 @@ function SettingsScreen({ onLogout }) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Admin sidebar (desktop ≥ 720px)
+// ─────────────────────────────────────────────────────────────
+function AdminSidebar({ tab, setTab, cfg }) {
+  return (
+    <div className="admin-sidebar">
+      <div className="sb-logo">
+        <div className="logo-pill"><img src="assets/logo-navy.jpg" alt="Padel Park"/></div>
+      </div>
+      <div className="sb-brand">
+        <div className="sb-name">{cfg.club?.name || 'Padel Park'}</div>
+        <div className="sb-city">{cfg.club?.city || 'León, Gto'}</div>
+        <div className="sb-status" style={{color: window.PPSb ? 'var(--lime)' : '#e0a04a'}}>
+          <span className={`dot ${window.PPSb ? 'live' : 'demo'}`}/>
+          {window.PPSb ? 'En vivo' : 'Sin conexión'}
+        </div>
+      </div>
+      <nav className="sb-nav">
+        {[
+          { k: 'scan',     icon: <Ic.cam/>,  label: 'Escanear' },
+          { k: 'log',      icon: <Ic.log/>,  label: 'Historial' },
+          { k: 'socios',   icon: <Ic.user/>, label: 'Socios' },
+          { k: 'avisos',   icon: <Ic.mega/>, label: 'Avisos' },
+          { k: 'settings', icon: <Ic.cog/>,  label: 'Ajustes' },
+        ].map(t => (
+          <button key={t.k} className={`sb-nav-item ${tab === t.k ? 'active' : ''}`} onClick={() => setTab(t.k)}>
+            {t.icon}
+            <span>{t.label}</span>
+          </button>
+        ))}
+      </nav>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // AdminApp shell
 // ─────────────────────────────────────────────────────────────
 function AdminApp() {
@@ -1048,6 +1117,7 @@ function AdminApp() {
   const cfg = window.PPGJ_CONFIG || {};
   return (
     <div className="admin-shell">
+      <AdminSidebar tab={tab} setTab={setTab} cfg={cfg} />
       <div className="admin-topbar">
         <div className="admin-brand">
           <div className="logo-pill"><img src="assets/logo-navy.jpg" alt="Padel Park"/></div>

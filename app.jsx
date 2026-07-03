@@ -604,10 +604,9 @@ function Generating({ onDone, formData }) {
 // ──────────────────────────────────────────────────────────────
 // Loyalty Card visual
 // ──────────────────────────────────────────────────────────────
-function LoyaltyCard({ member, style = 'classic', onClick }) {
-  const since = new Date(member.joinedAt).toLocaleDateString('es-MX', { month: 'short', year: '2-digit' });
+function LoyaltyCard({ member, style = 'classic', onClick, tier = { key: 'bronze', label: 'Bronze' } }) {
   return (
-    <div className={`loyalty-card style-${style}`} onClick={onClick}>
+    <div className={`loyalty-card style-${style}`} data-tier={tier.key} onClick={onClick}>
       <div className="lc-bg" />
       <div className="lc-pattern" />
       <div className="lc-grain" />
@@ -628,8 +627,8 @@ function LoyaltyCard({ member, style = 'classic', onClick }) {
             <div className="lc-name">{member.name.toUpperCase()}</div>
           </div>
           <div className="lc-tier">
-            <div className="lbl">Desde</div>
-            <div className="val">{since.toUpperCase()}</div>
+            <div className="lbl">NIVEL</div>
+            <div className="val">{tier.label.toUpperCase()}</div>
           </div>
         </div>
       </div>
@@ -675,7 +674,7 @@ function QrModal({ member, onClose }) {
 // ──────────────────────────────────────────────────────────────
 // Wallet Card — Apple Wallet-style downloadable image
 // ──────────────────────────────────────────────────────────────
-function WalletCard({ member, qrSvg, innerRef }) {
+function WalletCard({ member, qrSvg, innerRef, tier = { label: 'Bronze' } }) {
   const cfg = (typeof window !== 'undefined' && window.PPGJ_CONFIG) || {};
   const since = new Date(member.joinedAt).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
   return (
@@ -703,7 +702,7 @@ function WalletCard({ member, qrSvg, innerRef }) {
         </div>
         <div>
           <div className="wc-meta-lbl">Nivel</div>
-          <div className="wc-meta-val">{(member.level || 'Intermedio').toUpperCase()}</div>
+          <div className="wc-meta-val">{tier.label.toUpperCase()}</div>
         </div>
         <div>
           <div className="wc-meta-lbl">Miembro desde</div>
@@ -764,6 +763,7 @@ function CardScreen({ member, cardStyle, onOpenQr }) {
   const nextPromo   = nextVisit % 6 === 0 ? 'free' : nextVisit % 3 === 0 ? 'silver' : null;
   const birthday    = isBirthdayMonth(member.birth);
   const cycleFilled = totalVisits % 6;
+  const tier        = visitsReady ? tierFor(totalVisits) : { key: 'bronze', label: 'Bronze' };
 
   async function downloadWallet() {
     if (!walletRef.current || !window.htmlToImage) return;
@@ -798,7 +798,7 @@ function CardScreen({ member, cardStyle, onOpenQr }) {
         <div className="welcome-line"><span className="hi">¡Hola</span></div>
         <div className="member-name">{member.name.split(' ')[0].toUpperCase()}</div>
 
-        <LoyaltyCard member={member} style={cardStyle} onClick={onOpenQr} />
+        <LoyaltyCard member={member} style={cardStyle} tier={tier} onClick={onOpenQr} />
 
         <div className="card-actions">
           <button className="btn btn-primary" onClick={downloadWallet} disabled={downloading}>
@@ -869,7 +869,7 @@ function CardScreen({ member, cardStyle, onOpenQr }) {
 
       {/* Off-screen, full-quality wallet card used for the PNG export */}
       <div className="wallet-export-stage">
-        <WalletCard member={member} qrSvg={qrSvgWallet} innerRef={walletRef} />
+        <WalletCard member={member} qrSvg={qrSvgWallet} innerRef={walletRef} tier={tier} />
       </div>
     </div>
   );
@@ -938,6 +938,20 @@ function RewardsScreen() {
 // Profile tab
 // ──────────────────────────────────────────────────────────────
 function ProfileScreen({ member, onReset }) {
+  const [visits,  setVisits]  = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const mid = member.member_id || member.id;
+    if (!window.PPSb || !mid) { setLoading(false); return; }
+    window.PPSb.getMemberVisits(mid).then(({ data }) => {
+      setVisits(data || []);
+      setLoading(false);
+    });
+  }, [member.member_id, member.id]);
+
+  const totalVisits = visits.length;
+
   return (
     <div className="scroll fade-in">
       <TopBar right="PERFIL" />
@@ -966,6 +980,30 @@ function ProfileScreen({ member, onReset }) {
             </div>
           ))}
         </div>
+
+        <div className="profile-history">
+          <div className="ph-title">Mis visitas ({loading ? '…' : totalVisits})</div>
+          {loading && <div className="ph-empty">Cargando…</div>}
+          {!loading && visits.length === 0 && (
+            <div className="ph-empty">Aún no tienes visitas registradas.</div>
+          )}
+          {visits.map((v, i) => {
+            const visitNum = totalVisits - i;
+            const promo = visitNum % 6 === 0 ? 'free' : visitNum % 3 === 0 ? 'silver' : null;
+            return (
+              <div key={v.id} className="ph-row">
+                <div className="ph-num">{visitNum}</div>
+                <div className="ph-info">
+                  <div className="ph-date">{fmtDate(v.visited_at)}</div>
+                  {v.court && <div className="ph-court">Cancha {v.court}</div>}
+                </div>
+                {promo === 'free'   && <div className="ph-tag tag-free">GRATIS</div>}
+                {promo === 'silver' && <div className="ph-tag tag-silver">SILVER</div>}
+              </div>
+            );
+          })}
+        </div>
+
         <button className="btn btn-ghost" style={{width:'100%', marginTop:14}} onClick={onReset}>Cerrar sesión</button>
       </div>
     </div>

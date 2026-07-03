@@ -1162,3 +1162,128 @@ body.admin-body-bg {
   text-overflow: ellipsis;
 }
 .member-row-meta { font-size: 11.5px; color: rgba(14,29,87,0.5); margin-top: 2px; }
+
+/* ── Admin sidebar (desktop ≥ 720px) ──────────────────────── */
+.admin-sidebar { display: none; }
+
+@media (min-width: 720px) {
+  .admin-shell:has(.admin-topbar) {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    align-items: stretch;
+    padding: 0;
+    min-height: 100vh;
+  }
+  .admin-sidebar {
+    display: flex;
+    flex-direction: column;
+    background: var(--navy);
+    padding: 28px 16px;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    gap: 0;
+    z-index: 10;
+  }
+  .admin-topbar, .admin-tabs { display: none; }
+  .admin-body {
+    max-width: none;
+    padding: 24px 32px 32px;
+    overflow-y: auto;
+    height: 100vh;
+  }
+  .sb-logo {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 18px;
+  }
+  .sb-logo .logo-pill {
+    width: 52px; height: 52px;
+    border-radius: 13px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.15);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  }
+  .sb-logo .logo-pill img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .sb-brand {
+    text-align: center;
+    padding-bottom: 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    margin-bottom: 12px;
+  }
+  .sb-name {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 16px;
+    letter-spacing: 0.1em;
+    color: white;
+    line-height: 1;
+  }
+  .sb-city { font-size: 11px; color: rgba(255,255,255,0.4); margin-top: 3px; }
+  .sb-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    margin-top: 10px;
+    font-weight: 700;
+  }
+  .sb-status .dot { width: 6px; height: 6px; border-radius: 50%; }
+  .sb-status .dot.live {
+    background: var(--lime-deep);
+    box-shadow: 0 0 0 0 rgba(143,206,32,0.7);
+    animation: pulse 1.8s ease-out infinite;
+  }
+  .sb-status .dot.demo { background: #e0a04a; }
+  .sb-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    flex: 1;
+    margin-top: 4px;
+  }
+  .sb-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    color: rgba(255,255,255,0.5);
+    font-size: 13.5px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    transition: background 0.15s, color 0.15s;
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+  }
+  .sb-nav-item svg { width: 20px; height: 20px; flex-shrink: 0; }
+  .sb-nav-item:hover { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.85); }
+  .sb-nav-item.active { background: var(--lime); color: var(--navy); }
+}
+
+/* ── Confetti (admin SavedScreen milestone) ───────────────── */
+.confetti-wrap {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  overflow: hidden;
+}
+.confetti-piece {
+  position: absolute;
+  top: -20px;
+  border-radius: 2px;
+  background: var(--color, #b8f24a);
+  animation-name: confettiFall;
+  animation-duration: 2.2s;
+  animation-timing-function: ease-in;
+  animation-fill-mode: forwards;
+  animation-delay: var(--delay, 0s);
+}
+@keyframes confettiFall {
+  0%   { transform: translateY(0) translateX(0) rotate(0deg); opacity: 1; }
+  80%  { opacity: 1; }
+  100% { transform: translateY(105vh) translateX(15px) rotate(480deg); opacity: 0; }
+}
