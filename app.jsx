@@ -865,6 +865,9 @@ function CardScreen({ member, cardStyle, onOpenQr }) {
             )}
           </div>
         )}
+
+        {/* ── Avisos del club ── */}
+        <AnnouncementBanner member={member} />
       </div>
 
       {/* Off-screen, full-quality wallet card used for the PNG export */}
@@ -1275,8 +1278,7 @@ function App() {
 
         {screen === 'main' && member && (
           <>
-            <AnnouncementBanner member={member} />
-            {tab === 'card'     && <CardScreen member={member} cardStyle={tweaks.cardStyle} onOpenQr={()=>setQrOpen(true)} />}
+            {tab === 'card'     && <CardScreen member={member} cardStyle={tweaks.cardStyle} onOpenQr={()=>setQrOpen(true)} />
             {tab === 'rewards'  && <RewardsScreen />}
             {tab === 'profile'  && <ProfileScreen member={member} onReset={handleReset} />}
             <TabBar tab={tab} setTab={setTab} />

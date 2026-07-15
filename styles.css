@@ -1706,6 +1706,12 @@ input, textarea, select { font-family: inherit; }
   gap: 12px;
   padding: 0 22px 18px;
 }
+/* When inside card-screen the outer div already provides horizontal padding */
+.card-screen .ann-banner-stack {
+  padding-left: 0;
+  padding-right: 0;
+  margin-top: 18px;
+}
 .ann-card {
   border-radius: 18px;
   overflow: hidden;
