@@ -59,6 +59,7 @@ const Ic = {
   user:   p => <svg viewBox="0 0 24 24" fill="none" {...p}><circle cx="12" cy="8" r="4" stroke="currentColor" strokeWidth="1.6"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>,
   trash:  p => <svg viewBox="0 0 24 24" fill="none" {...p}><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>,
   search: p => <svg viewBox="0 0 24 24" fill="none" {...p}><circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="1.6"/><path d="M16.5 16.5L21 21" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>,
+  trophy: p => <svg viewBox="0 0 24 24" fill="none" {...p}><path d="M7 4h10v5a5 5 0 01-10 0V4zM5 5H3v2a3 3 0 003 3M19 5h2v2a3 3 0 01-3 3M9 17h6l1 4H8l1-4zM12 14v3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>,
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -1578,6 +1579,70 @@ function AdminEasterEgg({ onClose }) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Tournaments screen — dedicated tab, lists all torneo announcements
+// ─────────────────────────────────────────────────────────────
+function TournamentsScreen() {
+  const [items,   setItems]   = useState([]);
+  const [counts,  setCounts]  = useState({});
+  const [loading, setLoading] = useState(true);
+  const [viewTournament, setViewTournament] = useState(null);
+
+  function load() {
+    if (!window.PPSb) { setLoading(false); return; }
+    window.PPSb.getAnnouncements().then(async ({ data }) => {
+      const torneos = (data || []).filter(a => a.type === 'torneo');
+      setItems(torneos);
+      const c = {};
+      await Promise.all(torneos.map(async a => {
+        const { data: s } = await window.PPSb.getEventSignups(a.id);
+        c[a.id] = (s || []).length;
+      }));
+      setCounts(c);
+      setLoading(false);
+    });
+  }
+  useEffect(load, []);
+
+  return (
+    <div className="ann-screen">
+      <h2>Torneos</h2>
+      <p className="ann-lead">Administra parejas, rol de juego y resultados de cada torneo. Para crear uno nuevo, publícalo desde la pestaña Avisos con tipo «Torneo».</p>
+
+      {loading && <div className="empty">Cargando…</div>}
+      {!loading && items.length === 0 && (
+        <div className="empty" style={{padding:'24px 0'}}>
+          <Ic.trophy style={{width:28,height:28,opacity:.25,marginBottom:8}}/>
+          <div>Sin torneos publicados todavía.</div>
+        </div>
+      )}
+
+      <div style={{display:'flex', flexDirection:'column', gap:10}}>
+        {items.map(a => (
+          <div key={a.id} className="ann-row" style={{cursor:'pointer'}} onClick={() => setViewTournament(a)}>
+            <div className="ann-row-main">
+              <div className="ann-badge" style={{background:'#b8f24a22', color:'#8fce20', borderColor:'#b8f24a44', marginBottom:4}}>
+                TORNEO
+              </div>
+              <div className="ann-body">
+                <div className="ann-title">{a.title}</div>
+                <div className="ann-msg">{a.body}</div>
+                <div style={{display:'flex', gap:10, marginTop:4, flexWrap:'wrap'}}>
+                  {a.event_date && <div className="ann-exp">📅 {new Date(a.event_date).toLocaleDateString('es-MX',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</div>}
+                  <div className="ann-exp">{counts[a.id] || 0} inscritos</div>
+                </div>
+              </div>
+            </div>
+            <Ic.arrow style={{width:15,height:15,opacity:.3,flexShrink:0}}/>
+          </div>
+        ))}
+      </div>
+
+      {viewTournament && <TournamentModal ann={viewTournament} onClose={() => { setViewTournament(null); load(); }} />}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // Admin sidebar (desktop ≥ 720px)
 // ─────────────────────────────────────────────────────────────
 function AdminSidebar({ tab, setTab, cfg, onLogoTap }) {
@@ -1598,11 +1663,12 @@ function AdminSidebar({ tab, setTab, cfg, onLogoTap }) {
       </div>
       <nav className="sb-nav">
         {[
-          { k: 'scan',     icon: <Ic.cam/>,  label: 'Escanear' },
-          { k: 'log',      icon: <Ic.log/>,  label: 'Historial' },
-          { k: 'socios',   icon: <Ic.user/>, label: 'Socios' },
-          { k: 'avisos',   icon: <Ic.mega/>, label: 'Avisos' },
-          { k: 'settings', icon: <Ic.cog/>,  label: 'Ajustes' },
+          { k: 'scan',     icon: <Ic.cam/>,    label: 'Escanear' },
+          { k: 'log',      icon: <Ic.log/>,    label: 'Historial' },
+          { k: 'socios',   icon: <Ic.user/>,   label: 'Socios' },
+          { k: 'avisos',   icon: <Ic.mega/>,   label: 'Avisos' },
+          { k: 'torneos',  icon: <Ic.trophy/>, label: 'Torneos' },
+          { k: 'settings', icon: <Ic.cog/>,    label: 'Ajustes' },
         ].map(t => (
           <button key={t.k} className={`sb-nav-item ${tab === t.k ? 'active' : ''}`} onClick={() => setTab(t.k)}>
             {t.icon}
@@ -1666,6 +1732,7 @@ function AdminApp() {
         {tab==='log'      && <LogScreen onViewMember={(id, name) => setViewMember({id, name})}/>}
         {tab==='socios'   && <MembersScreen onViewMember={(id, name) => setViewMember({id, name})}/>}
         {tab==='avisos'   && <AnnouncementsScreen/>}
+        {tab==='torneos'  && <TournamentsScreen/>}
         {tab==='settings' && <SettingsScreen onLogout={logout}/>}
       </div>
 
@@ -1681,6 +1748,9 @@ function AdminApp() {
         </button>
         <button className={`atab ${tab==='avisos'?'active':''}`}   onClick={()=>setTab('avisos')}>
           <Ic.mega/><span>Avisos</span>
+        </button>
+        <button className={`atab ${tab==='torneos'?'active':''}`}  onClick={()=>setTab('torneos')}>
+          <Ic.trophy/><span>Torneos</span>
         </button>
         <button className={`atab ${tab==='settings'?'active':''}`} onClick={()=>setTab('settings')}>
           <Ic.cog/><span>Ajustes</span>

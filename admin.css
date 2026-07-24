@@ -610,8 +610,9 @@ body.admin-body-bg {
 .fade-in { animation: fadeUp 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); }
 
 /* ── Announcements screen ─────────────────────────────────── */
-.admin-tabs { grid-template-columns: repeat(5, 1fr); }
-.atab span { font-size: 9.5px; }
+.admin-tabs { grid-template-columns: repeat(6, 1fr); }
+.atab span { font-size: 8.5px; }
+.atab svg { width: 19px; height: 19px; }
 
 .ann-screen h2 {
   font-family: 'Bebas Neue', sans-serif;

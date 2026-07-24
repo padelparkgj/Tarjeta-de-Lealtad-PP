@@ -1123,6 +1123,11 @@ input, textarea, select { font-family: inherit; }
 
 /* Bottom tab nav */
 .tabbar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
   border-top: 1px solid var(--line);
   background: rgba(251, 250, 246, 0.95);
   backdrop-filter: blur(10px);
@@ -1242,7 +1247,7 @@ input, textarea, select { font-family: inherit; }
 }
 
 /* Rewards screen */
-.rewards-screen { padding: 8px 22px 22px; }
+.rewards-screen { padding: 8px 22px 90px; }
 .rewards-screen h2 {
   font-family: 'Bebas Neue', sans-serif;
   font-size: 32px;

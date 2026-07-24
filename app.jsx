@@ -870,8 +870,8 @@ function CardScreen({ member, cardStyle, onOpenQr }) {
           </div>
         )}
 
-        {/* ── Avisos del club ── */}
-        <AnnouncementBanner member={member} />
+        {/* ── Avisos del club (los torneos viven en su propia pestaña) ── */}
+        <AnnouncementBanner member={member} excludeTypes={['torneo']} />
       </div>
 
       {/* Off-screen, full-quality wallet card used for the PNG export */}
@@ -1138,7 +1138,7 @@ function PartnerPickerModal({ excludeMemberIds = [], onPick, onSkip, onClose }) 
   );
 }
 
-function AnnCard({ ann, member, onDismiss }) {
+function AnnCard({ ann, member, onDismiss, dismissible = true }) {
   const c   = ANN_COLORS[ann.type] || ANN_COLORS.info;
   const rem = useCountdown(ann.event_date);
   const isTournament = ann.type === 'torneo';
@@ -1224,9 +1224,11 @@ function AnnCard({ ann, member, onDismiss }) {
           <span className="ann-card-badge" style={{ background: c.badge, color: c.badgeText }}>
             {ANN_LABELS[ann.type] || 'AVISO'}
           </span>
-          <button className="ann-card-close" onClick={onDismiss}>
-            <Ic.close style={{width:13,height:13}} />
-          </button>
+          {dismissible && (
+            <button className="ann-card-close" onClick={onDismiss}>
+              <Ic.close style={{width:13,height:13}} />
+            </button>
+          )}
         </div>
         <div className="ann-card-title">{ann.title}</div>
         <div className="ann-card-text">{ann.body}</div>
@@ -1293,7 +1295,7 @@ function AnnCard({ ann, member, onDismiss }) {
   );
 }
 
-function AnnouncementBanner({ member }) {
+function AnnouncementBanner({ member, excludeTypes = [] }) {
   const [items,     setItems]     = useState([]);
   const [dismissed, setDismissed] = useState(new Set());
 
@@ -1302,7 +1304,7 @@ function AnnouncementBanner({ member }) {
     window.PPSb.getAnnouncements().then(({ data }) => setItems(data || []));
   }, []);
 
-  const visible = items.filter(a => !dismissed.has(a.id));
+  const visible = items.filter(a => !dismissed.has(a.id) && !excludeTypes.includes(a.type));
   if (!visible.length) return null;
 
   return (
@@ -1316,11 +1318,52 @@ function AnnouncementBanner({ member }) {
 }
 
 // ──────────────────────────────────────────────────────────────
+// Torneos tab — lists all tournament announcements
+// ──────────────────────────────────────────────────────────────
+function TournamentsScreen({ member }) {
+  const [items,   setItems]   = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!window.PPSb) { setLoading(false); return; }
+    window.PPSb.getAnnouncements().then(({ data }) => {
+      setItems((data || []).filter(a => a.type === 'torneo'));
+      setLoading(false);
+    });
+  }, []);
+
+  return (
+    <div className="scroll fade-in">
+      <TopBar right="TORNEOS" />
+      <div className="card-screen">
+        <h2 style={{fontFamily:"'Bebas Neue',sans-serif", fontSize:32, color:'var(--navy)', margin:'14px 0 16px'}}>
+          Torneos
+        </h2>
+
+        {loading && <div className="empty">Cargando…</div>}
+        {!loading && items.length === 0 && (
+          <div className="empty">Sin torneos activos por el momento.</div>
+        )}
+
+        {!loading && items.length > 0 && (
+          <div className="ann-banner-stack" style={{padding:0}}>
+            {items.map(a => (
+              <AnnCard key={a.id} ann={a} member={member} dismissible={false} />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
 // Tab bar
 // ──────────────────────────────────────────────────────────────
 function TabBar({ tab, setTab }) {
   const tabs = [
     { k: 'card',     l: 'Tarjeta',    ic: <Ic.card /> },
+    { k: 'torneos',  l: 'Torneos',    ic: <Ic.trophy /> },
     { k: 'rewards',  l: 'Beneficios', ic: <Ic.gift /> },
     { k: 'profile',  l: 'Perfil',     ic: <Ic.user /> },
   ];
@@ -1464,6 +1507,7 @@ function App() {
         {screen === 'main' && member && (
           <>
             {tab === 'card'     && <CardScreen member={member} cardStyle={tweaks.cardStyle} onOpenQr={()=>setQrOpen(true)} />}
+            {tab === 'torneos'  && <TournamentsScreen member={member} />}
             {tab === 'rewards'  && <RewardsScreen />}
             {tab === 'profile'  && <ProfileScreen member={member} onReset={handleReset} />}
             <TabBar tab={tab} setTab={setTab} />
