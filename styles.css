@@ -50,7 +50,8 @@ input, textarea, select { font-family: inherit; }
   width: 100%;
   max-width: 440px;
   background: var(--paper);
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
   position: relative;
   overflow: hidden;
   display: flex;
