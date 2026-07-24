@@ -1995,3 +1995,122 @@ input, textarea, select { font-family: inherit; }
 }
 .ph-tag.tag-free   { background: rgba(184,242,74,0.25); color: var(--lime-deep); }
 .ph-tag.tag-silver { background: rgba(122,220,240,0.18); color: #2aa3b8; }
+
+/* ── Partner picker modal (tournament signup) ────────────── */
+.pp-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(14,29,87,0.55);
+  backdrop-filter: blur(4px);
+  z-index: 300;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.pp-modal {
+  background: var(--paper);
+  border-radius: 24px 24px 0 0;
+  width: 100%;
+  max-width: 440px;
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: 20px 20px calc(20px + env(safe-area-inset-bottom));
+}
+.pp-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.pp-modal-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 20px;
+  letter-spacing: .02em;
+  color: var(--navy);
+}
+.pp-modal-close {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: rgba(14,29,87,0.07);
+  color: var(--navy);
+  display: grid; place-items: center;
+  flex-shrink: 0;
+}
+.pp-modal-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.pp-tab-pill {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1.5px solid var(--line);
+  color: rgba(14,29,87,0.6);
+  background: white;
+  cursor: pointer;
+}
+.pp-tab-pill.active {
+  background: var(--navy);
+  color: var(--lime);
+  border-color: var(--navy);
+}
+.pp-search-input {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1.5px solid rgba(14,29,87,0.14);
+  font-size: 14px;
+  color: var(--navy-ink);
+  outline: none;
+  margin-bottom: 12px;
+}
+.pp-search-input:focus { border-color: var(--navy); }
+.pp-member-list { display: flex; flex-direction: column; gap: 8px; }
+.pp-member-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px 14px;
+  cursor: pointer;
+}
+.pp-member-row:hover { background: rgba(14,29,87,0.03); }
+.pp-member-avatar {
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  background: var(--navy);
+  color: var(--lime);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 15px;
+  display: grid; place-items: center;
+  flex-shrink: 0;
+}
+.pp-member-info { flex: 1; min-width: 0; }
+.pp-member-name { font-size: 13.5px; font-weight: 600; color: var(--navy); }
+.pp-member-meta { font-size: 11px; color: rgba(14,29,87,0.5); margin-top: 1px; }
+
+/* ── Tournament match/results block inside AnnCard ───────── */
+.ann-match-block {
+  margin-top: 12px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.amb-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--lime);
+  margin-bottom: 4px;
+}
+.amb-row { font-size: 13px; color: rgba(255,255,255,0.85); }
+.amb-vs  { font-size: 12.5px; color: rgba(255,255,255,0.65); margin-top: 2px; }
+.amb-result-row { font-size: 12.5px; color: rgba(255,255,255,0.75); margin-top: 3px; }
+.amb-won  { color: var(--lime); font-weight: 700; }
+.amb-lost { color: #ff8a8a; font-weight: 700; }
+.amb-champion { margin-top: 6px; font-size: 12.5px; color: var(--lime); font-weight: 600; }

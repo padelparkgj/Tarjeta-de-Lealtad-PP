@@ -1163,6 +1163,121 @@ body.admin-body-bg {
 }
 .member-row-meta { font-size: 11.5px; color: rgba(14,29,87,0.5); margin-top: 2px; }
 
+/* ── Tournament modal ─────────────────────────────────────── */
+.trn-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.trn-config-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.trn-roster-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px 14px;
+}
+.trn-roster-unpaired {
+  border: 1.5px dashed rgba(224,160,74,0.5);
+  background: rgba(224,160,74,0.06);
+}
+.trn-wa-btn {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  width: 34px; height: 34px;
+  border-radius: 10px;
+  background: rgba(37,180,101,0.12);
+  color: #1c9a4c;
+  display: grid; place-items: center;
+}
+.trn-wa-btn:hover { background: rgba(37,180,101,0.22); }
+.trn-error {
+  margin-top: 10px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(200,50,50,0.08);
+  color: #c03;
+  font-size: 13px;
+  font-weight: 500;
+}
+.trn-match-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+}
+.trn-match-row.trn-match-done { opacity: 0.6; }
+.trn-match-row.trn-next-up { border-color: rgba(184,242,74,0.5); background: rgba(184,242,74,0.06); }
+.trn-match-court {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 18px;
+  letter-spacing: .06em;
+  width: 40px; height: 40px;
+  background: var(--navy);
+  color: var(--lime);
+  border-radius: 10px;
+  display: grid; place-items: center;
+  flex-shrink: 0;
+}
+.trn-match-info { flex: 1; min-width: 0; }
+.trn-match-time { font-size: 11.5px; color: rgba(14,29,87,0.5); margin-bottom: 4px; }
+.trn-match-teams { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.trn-team-btn {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--navy);
+  background: rgba(14,29,87,0.06);
+  border-radius: 8px;
+  padding: 6px 10px;
+  transition: background 0.15s;
+}
+.trn-team-btn:hover:not(:disabled) { background: rgba(14,29,87,0.14); }
+.trn-team-btn.winner { background: var(--lime); color: var(--navy); font-weight: 800; }
+.trn-team-btn:disabled { cursor: default; }
+.trn-vs { font-size: 11px; color: rgba(14,29,87,0.4); text-transform: uppercase; }
+.trn-standings-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin-bottom: 6px;
+}
+.trn-standings-row.trn-champion { border-color: rgba(184,242,74,0.5); background: rgba(184,242,74,0.1); }
+.trn-standings-pos {
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  background: var(--navy);
+  color: var(--lime);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 12px;
+  display: grid; place-items: center;
+  flex-shrink: 0;
+}
+.trn-standings-wins {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 15px;
+  color: var(--navy);
+  letter-spacing: .04em;
+  flex-shrink: 0;
+}
+
 /* ── Admin sidebar (desktop ≥ 720px) ──────────────────────── */
 .admin-sidebar { display: none; }
 

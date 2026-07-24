@@ -34,6 +34,10 @@ function fmtDate(ts) {
   const months = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
   return `${d.getDate()} ${months[d.getMonth()]} · ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
 }
+function fmtTime(ts) {
+  const d = new Date(ts);
+  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
 
 // ──────────────────────────────────────────────────────────────
 // QR code generation — returns SVG string
@@ -1044,11 +1048,107 @@ function useCountdown(eventDate) {
   return rem;
 }
 
+// Partner picker — search an existing member OR type a name manually
+// (for a partner who isn't registered in the app)
+function PartnerPickerModal({ excludeMemberIds = [], onPick, onSkip, onClose }) {
+  const [mode,       setMode]       = useState('search'); // 'search' | 'manual'
+  const [members,    setMembers]    = useState([]);
+  const [search,     setSearch]     = useState('');
+  const [manualName, setManualName] = useState('');
+  const [loading,    setLoading]    = useState(true);
+
+  useEffect(() => {
+    if (!window.PPSb) { setLoading(false); return; }
+    window.PPSb.getAllMembers().then(({ data }) => {
+      setMembers(data || []);
+      setLoading(false);
+    });
+  }, []);
+
+  const filtered = members.filter(m =>
+    !excludeMemberIds.includes(m.member_id) &&
+    (!search || (m.name || '').toLowerCase().includes(search.toLowerCase()))
+  );
+
+  function confirmManual() {
+    if (!manualName.trim()) return;
+    onPick({ member_id: null, name: manualName.trim() });
+  }
+
+  return (
+    <div className="pp-modal-overlay" onClick={onClose}>
+      <div className="pp-modal" onClick={e => e.stopPropagation()}>
+        <div className="pp-modal-header">
+          <div className="pp-modal-title">Elige tu pareja</div>
+          <button className="pp-modal-close" onClick={onClose}><Ic.close style={{width:14,height:14}}/></button>
+        </div>
+
+        <div className="pp-modal-tabs">
+          <button className={`pp-tab-pill ${mode==='search'?'active':''}`} onClick={() => setMode('search')}>
+            Socio registrado
+          </button>
+          <button className={`pp-tab-pill ${mode==='manual'?'active':''}`} onClick={() => setMode('manual')}>
+            Escribir nombre
+          </button>
+        </div>
+
+        {mode === 'search' && (
+          <>
+            <input className="pp-search-input" value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Buscar socio…" autoFocus />
+            {loading && <div className="empty">Cargando…</div>}
+            {!loading && filtered.length === 0 && <div className="empty" style={{padding:16}}>Sin resultados.</div>}
+            <div className="pp-member-list">
+              {filtered.map(m => (
+                <div key={m.id} className="pp-member-row" onClick={() => onPick(m)}>
+                  <div className="pp-member-avatar">
+                    {(m.name || '').split(' ').map(p=>p[0]).slice(0,2).join('').toUpperCase()}
+                  </div>
+                  <div className="pp-member-info">
+                    <div className="pp-member-name">{m.name}</div>
+                    <div className="pp-member-meta">{m.member_id}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {mode === 'manual' && (
+          <div style={{padding:'4px 0'}}>
+            <div className="field">
+              <label>Nombre de tu pareja</label>
+              <input value={manualName} onChange={e => setManualName(e.target.value)}
+                placeholder="Nombre completo" autoFocus />
+            </div>
+            <p style={{fontSize:12, color:'rgba(14,29,87,0.5)', margin:'-6px 0 12px'}}>
+              Si no es socio registrado, no podrá recibir avisos por WhatsApp automáticamente.
+            </p>
+            <button className="btn btn-primary" style={{width:'100%'}} onClick={confirmManual} disabled={!manualName.trim()}>
+              Usar este nombre
+            </button>
+          </div>
+        )}
+
+        <button className="btn btn-ghost" style={{width:'100%', marginTop:12}} onClick={onSkip}>
+          Sin pareja por ahora
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function AnnCard({ ann, member, onDismiss }) {
   const c   = ANN_COLORS[ann.type] || ANN_COLORS.info;
   const rem = useCountdown(ann.event_date);
+  const isTournament = ann.type === 'torneo';
   const [signedUp, setSignedUp] = useState(false);
   const [sigBusy,  setSigBusy]  = useState(false);
+  const [showPicker, setShowPicker] = useState(false);
+
+  const [pairs,   setPairs]   = useState([]);
+  const [matches, setMatches] = useState([]);
+  const [myPairId, setMyPairId] = useState(null);
 
   useEffect(() => {
     if (!ann.allow_signup || !member || !window.PPSb) return;
@@ -1057,19 +1157,62 @@ function AnnCard({ ann, member, onDismiss }) {
     });
   }, [ann.id]);
 
-  async function toggleSignup() {
+  useEffect(() => {
+    if (!isTournament || !signedUp || !window.PPSb) return;
+    const mid = member.member_id || member.id;
+    Promise.all([
+      window.PPSb.getTournamentPairs(ann.id),
+      window.PPSb.getTournamentMatches(ann.id),
+    ]).then(([pRes, mRes]) => {
+      const allPairs = pRes.data || [];
+      const mine = allPairs.find(p => p.member_id_1 === mid || p.member_id_2 === mid);
+      setPairs(allPairs);
+      setMatches(mRes.data || []);
+      setMyPairId(mine ? mine.id : null);
+    });
+  }, [isTournament, signedUp, ann.id]);
+
+  async function cancelMySignup() {
     if (!member || !window.PPSb) return;
     setSigBusy(true);
     const mid = member.member_id || member.id;
-    if (signedUp) {
-      await window.PPSb.cancelSignup(ann.id, mid);
-      setSignedUp(false);
-    } else {
-      await window.PPSb.signUpForEvent(ann.id, mid, member.name);
-      setSignedUp(true);
-    }
+    await window.PPSb.cancelSignup(ann.id, mid);
+    setSignedUp(false);
     setSigBusy(false);
   }
+
+  async function directSignup() {
+    if (!member || !window.PPSb) return;
+    setSigBusy(true);
+    const mid = member.member_id || member.id;
+    await window.PPSb.signUpForEvent(ann.id, mid, member.name);
+    setSignedUp(true);
+    setSigBusy(false);
+  }
+
+  async function completeTournamentSignup(partner) {
+    if (!member || !window.PPSb) return;
+    setSigBusy(true);
+    const mid = member.member_id || member.id;
+    await window.PPSb.signUpForTournament(ann.id, mid, member.name, partner?.member_id || null, partner?.name || null);
+    setSignedUp(true);
+    setSigBusy(false);
+    setShowPicker(false);
+  }
+
+  function handleSignupClick() {
+    if (signedUp) { cancelMySignup(); return; }
+    if (isTournament) { setShowPicker(true); return; }
+    directSignup();
+  }
+
+  const myMatches   = myPairId ? matches.filter(m => m.pair_a_id === myPairId || m.pair_b_id === myPairId) : [];
+  const nextMatch   = myMatches.find(m => m.status === 'scheduled');
+  const pastMatches = myMatches.filter(m => m.status === 'completed');
+  const myWins      = pastMatches.filter(m => m.winner_pair_id === myPairId).length;
+  const standings   = (isTournament && window.PPTournament && pairs.length)
+    ? window.PPTournament.computeStandings(pairs.filter(p => p.member_id_2), matches)
+    : null;
 
   return (
     <div className="ann-card" style={{ borderColor: c.border }}>
@@ -1097,13 +1240,55 @@ function AnnCard({ ann, member, onDismiss }) {
           </div>
         )}
 
+        {isTournament && signedUp && nextMatch && (
+          <div className="ann-match-block">
+            <div className="amb-title">Tu partido</div>
+            <div className="amb-row">Cancha {nextMatch.court} · {fmtTime(nextMatch.match_start)}</div>
+            <div className="amb-vs">
+              vs {nextMatch.pair_a_id === myPairId
+                ? `${nextMatch.pair_b?.member_name_1}${nextMatch.pair_b?.member_name_2 ? ' / '+nextMatch.pair_b.member_name_2 : ''}`
+                : `${nextMatch.pair_a?.member_name_1}${nextMatch.pair_a?.member_name_2 ? ' / '+nextMatch.pair_a.member_name_2 : ''}`}
+            </div>
+          </div>
+        )}
+
+        {isTournament && signedUp && pastMatches.length > 0 && (
+          <div className="ann-match-block">
+            <div className="amb-title">Tus resultados ({myWins}-{pastMatches.length - myWins})</div>
+            {pastMatches.map(m => {
+              const won = m.winner_pair_id === myPairId;
+              const opp = m.pair_a_id === myPairId ? m.pair_b : m.pair_a;
+              return (
+                <div key={m.id} className="amb-result-row">
+                  <span className={won ? 'amb-won' : 'amb-lost'}>{won ? 'Ganado' : 'Perdido'}</span>
+                  <span> vs {opp?.member_name_1}{opp?.member_name_2 ? ' / '+opp.member_name_2 : ''}</span>
+                </div>
+              );
+            })}
+            {standings && standings.champion && (
+              <div className="amb-champion">
+                🏆 Campeón: {standings.champion.pair.member_name_1}{standings.champion.pair.member_name_2 ? ' / '+standings.champion.pair.member_name_2 : ''}
+              </div>
+            )}
+          </div>
+        )}
+
         {ann.allow_signup && (
           <button className={`ann-signup-btn ${signedUp ? 'signed' : ''}`}
-            onClick={toggleSignup} disabled={sigBusy}>
+            onClick={handleSignupClick} disabled={sigBusy}>
             {sigBusy ? '…' : signedUp ? '✓ Inscrito — cancelar' : 'Inscribirme →'}
           </button>
         )}
       </div>
+
+      {showPicker && member && (
+        <PartnerPickerModal
+          excludeMemberIds={[member.member_id || member.id]}
+          onPick={completeTournamentSignup}
+          onSkip={() => completeTournamentSignup(null)}
+          onClose={() => setShowPicker(false)}
+        />
+      )}
     </div>
   );
 }
