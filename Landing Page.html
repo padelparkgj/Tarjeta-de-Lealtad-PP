@@ -69,6 +69,16 @@
             }
           });
         });
+        // An installed PWA usually resumes a suspended session instead of
+        // doing a fresh navigation, so it never notices new deploys on its
+        // own — actively re-check whenever the app comes back to front.
+        const checkForUpdate = () => reg.update().catch(() => {});
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') checkForUpdate();
+        });
+        window.addEventListener('focus', checkForUpdate);
+        window.addEventListener('pageshow', checkForUpdate);
+        checkForUpdate();
       });
     }
   </script>
