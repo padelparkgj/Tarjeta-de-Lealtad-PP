@@ -1555,13 +1555,38 @@ function SettingsScreen({ onLogout }) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Easter egg — 6 taps on the logo shows version and creator
+// (reuses the .ee-* classes already defined in styles.css)
+// ─────────────────────────────────────────────────────────────
+function AdminEasterEgg({ onClose }) {
+  return (
+    <div className="ee-overlay" onClick={onClose}>
+      <div className="ee-card" onClick={e => e.stopPropagation()}>
+        <div className="ee-logo">
+          <img src="assets/logo-navy.jpg" alt="PP" />
+        </div>
+        <div className="ee-name">Padel Park Gran Jardín</div>
+        <div className="ee-version">v2.0 · Panel de Recepción</div>
+        <div className="ee-divider" />
+        <div className="ee-made">Desarrollado por</div>
+        <div className="ee-creator">ProcesaLab</div>
+        <div className="ee-sub">by EAJDR</div>
+        <button className="ee-close" onClick={onClose}>Cerrar</button>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // Admin sidebar (desktop ≥ 720px)
 // ─────────────────────────────────────────────────────────────
-function AdminSidebar({ tab, setTab, cfg }) {
+function AdminSidebar({ tab, setTab, cfg, onLogoTap }) {
   return (
     <div className="admin-sidebar">
       <div className="sb-logo">
-        <div className="logo-pill"><img src="assets/logo-navy.jpg" alt="Padel Park"/></div>
+        <div className="logo-pill" onClick={onLogoTap} style={{cursor:'pointer'}}>
+          <img src="assets/logo-navy.jpg" alt="Padel Park"/>
+        </div>
       </div>
       <div className="sb-brand">
         <div className="sb-name">{cfg.club?.name || 'Padel Park'}</div>
@@ -1596,18 +1621,35 @@ function AdminApp() {
   const [authed,      setAuthed]      = useState(() => localStorage.getItem(ADMIN_AUTH_KEY) === '1');
   const [tab,         setTab]         = useState('scan');
   const [viewMember,  setViewMember]  = useState(null); // { id, name }
+  const [logoTaps,    setLogoTaps]    = useState(0);
+  const [showEgg,     setShowEgg]     = useState(false);
+  const tapResetRef = useRef(null);
 
   function logout() { localStorage.removeItem(ADMIN_AUTH_KEY); setAuthed(false); }
+
+  function handleLogoTap() {
+    clearTimeout(tapResetRef.current);
+    const next = logoTaps + 1;
+    if (next >= 6) {
+      setLogoTaps(0);
+      setShowEgg(true);
+    } else {
+      setLogoTaps(next);
+      tapResetRef.current = setTimeout(() => setLogoTaps(0), 1800);
+    }
+  }
 
   if (!authed) return <Login onAuth={() => setAuthed(true)} />;
 
   const cfg = window.PPGJ_CONFIG || {};
   return (
     <div className="admin-shell">
-      <AdminSidebar tab={tab} setTab={setTab} cfg={cfg} />
+      <AdminSidebar tab={tab} setTab={setTab} cfg={cfg} onLogoTap={handleLogoTap} />
       <div className="admin-topbar">
         <div className="admin-brand">
-          <div className="logo-pill"><img src="assets/logo-navy.jpg" alt="Padel Park"/></div>
+          <div className="logo-pill" onClick={handleLogoTap} style={{cursor:'pointer'}}>
+            <img src="assets/logo-navy.jpg" alt="Padel Park"/>
+          </div>
           <div>
             <div className="ttl">RECEPCIÓN</div>
             <div className="sub">{cfg.club?.name||'Padel Park'} · {cfg.club?.city||'León, Gto'}</div>
@@ -1652,6 +1694,8 @@ function AdminApp() {
           onClose={() => setViewMember(null)}
         />
       )}
+
+      {showEgg && <AdminEasterEgg onClose={() => setShowEgg(false)} />}
     </div>
   );
 }
