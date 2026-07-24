@@ -201,7 +201,7 @@ function EasterEgg({ onClose }) {
           <img src="assets/logo-navy.jpg" alt="PP" />
         </div>
         <div className="ee-name">Padel Park Gran Jardín</div>
-        <div className="ee-version">v2.0 · Tarjeta de Lealtad</div>
+        <div className="ee-version">v2.1 · Tarjeta de Lealtad</div>
         <div className="ee-divider" />
         <div className="ee-made">Desarrollado por</div>
         <div className="ee-creator">ProcesaLab</div>
