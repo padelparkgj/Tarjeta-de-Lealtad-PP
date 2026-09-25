@@ -2,7 +2,7 @@
 // Network-first strategy: always tries to get fresh content,
 // falls back to cache only when offline.
 
-const CACHE = 'ppgj-v1';
+const CACHE = 'ppgj-v2';
 
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', e => {
@@ -20,7 +20,7 @@ self.addEventListener('fetch', e => {
   if (url.origin !== self.location.origin) return;
 
   e.respondWith(
-    fetch(e.request)
+    fetch(e.request, { cache: 'no-store' })
       .then(res => {
         if (res && res.status === 200) {
           const clone = res.clone();
