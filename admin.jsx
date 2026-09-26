@@ -65,43 +65,85 @@ const Ic = {
 // ─────────────────────────────────────────────────────────────
 // Login
 // ─────────────────────────────────────────────────────────────
-function Login({ onAuth }) {
-  const [pin, setPin] = useState('');
-  const [err, setErr] = useState(false);
-  const cfg = window.PPGJ_CONFIG || {};
-
-  function submit(e) {
-    e.preventDefault();
-    if (pin === cfg.adminToken || pin === 'demo') {
-      localStorage.setItem(ADMIN_AUTH_KEY, '1');
-      onAuth();
-    } else {
-      setErr(true);
-      setTimeout(() => setErr(false), 600);
-    }
-  }
-
+// El panel entra con una cuenta de personal de Supabase, la misma del POS. Ya no hay
+// PIN: el de antes estaba publicado en config.js y además aceptaba 'demo'. Lo que
+// impide leer y escribir es la RLS (es_personal() en cada consulta); esta puerta
+// decide qué se pinta, y sin sesión de personal no pinta socios ni deja registrar.
+function LoginShell({ lead, children }) {
   return (
     <div className="admin-shell">
       <div className="admin-card login">
         <div className="logo-block"><img src="assets/logo-navy.jpg" alt="Padel Park" /></div>
         <div className="admin-eyebrow"><span className="dot"></span>Panel de Recepción</div>
         <h1>Padel Park <span className="script">Gran Jardín</span></h1>
-        <p className="lead">Ingresa el PIN del club para abrir el scanner y registrar visitas.</p>
-        <form onSubmit={submit}>
-          <div className="field">
-            <label>PIN de acceso</label>
-            <input type="password" value={pin} onChange={e=>{setPin(e.target.value);setErr(false);}}
-              placeholder="••••••••" className={err?'shake':''} autoFocus />
-            {err && <div className="err">PIN incorrecto</div>}
-          </div>
-          <button type="submit" className="btn btn-primary">
-            Entrar al panel <Ic.arrow style={{width:16,height:16}}/>
-          </button>
-          <a href="Landing Page.html" className="back-link">← Volver a la página de socios</a>
-        </form>
+        <p className="lead">{lead}</p>
+        {children}
+        <a href="Landing Page.html" className="back-link">← Volver a la página de socios</a>
       </div>
     </div>
+  );
+}
+
+function Login({ onEntered }) {
+  const [email,    setEmail]    = useState('');
+  const [password, setPassword] = useState('');
+  const [err,      setErr]      = useState(null);
+  const [busy,     setBusy]     = useState(false);
+
+  async function submit(e) {
+    e.preventDefault();
+    if (!email || !password) return;
+    setBusy(true);
+    setErr(null);
+    const { error } = await window.PPSb.signIn(email.trim().toLowerCase(), password);
+    setBusy(false);
+    if (error) {
+      // Credenciales malas y red caída no son lo mismo, y no se dicen igual.
+      setErr(error.status === 400 || error.code === 'invalid_credentials'
+        ? 'Correo o contraseña incorrectos.'
+        : 'No se pudo entrar: ' + error.message);
+      return;
+    }
+    onEntered();
+  }
+
+  return (
+    <LoginShell lead="Entra con tu cuenta de personal del club para registrar visitas y administrar socios.">
+      <form onSubmit={submit}>
+        <div className="field">
+          <label>Correo</label>
+          <input type="email" value={email} onChange={e=>{setEmail(e.target.value);setErr(null);}}
+            autoComplete="username" autoFocus />
+        </div>
+        <div className="field">
+          <label>Contraseña</label>
+          <input type="password" value={password} onChange={e=>{setPassword(e.target.value);setErr(null);}}
+            placeholder="••••••••" autoComplete="current-password" />
+          {err && <div className="err">{err}</div>}
+        </div>
+        <button type="submit" className="btn btn-primary" disabled={busy}>
+          {busy ? 'Entrando…' : <>Entrar al panel <Ic.arrow style={{width:16,height:16}}/></>}
+        </button>
+      </form>
+    </LoginShell>
+  );
+}
+
+// Con sesión pero sin papel de personal, o sin poder preguntarlo: el panel no se monta.
+function SinAcceso({ acceso, motivo, onRetry, onLogout }) {
+  const noSe = acceso === 'no-se';
+  return (
+    <LoginShell lead={noSe
+      ? 'No se pudo comprobar si esta cuenta es de personal, así que el panel no enseña socios ni registra visitas.'
+      : 'Esta cuenta no es de personal del club. El panel no enseña socios ni registra visitas con ella.'}>
+      {noSe && motivo && <div className="err" style={{marginBottom:12}}>{motivo}</div>}
+      {noSe && (
+        <button type="button" className="btn btn-primary" onClick={onRetry}>Reintentar</button>
+      )}
+      <button type="button" className="btn btn-ghost" style={{marginTop:10}} onClick={onLogout}>
+        Cerrar sesión
+      </button>
+    </LoginShell>
   );
 }
 
@@ -196,6 +238,8 @@ function MemberPanel({ member, visitCount, court, onConfirm, onCancel }) {
   async function confirm() {
     setBusy(true);
     await onConfirm();
+    // Si la visita no se guardó, el panel sigue aquí con su aviso: el botón vuelve.
+    setBusy(false);
   }
 
   return (
@@ -363,21 +407,45 @@ function ScannerScreen() {
 
     try {
       const [mRes, vRes] = await Promise.all([
-        window.PPSb ? window.PPSb.getMemberByMemberId(p.id) : Promise.resolve({ data: null }),
-        window.PPSb ? window.PPSb.getMemberVisits(p.id)     : Promise.resolve({ data: [] }),
+        window.PPSb.getMemberByMemberId(p.id),
+        window.PPSb.getMemberVisits(p.id),
       ]);
-      setMember(mRes.data || { member_id: p.id, name: p.name });
+      // supabase-js no lanza: el fallo viene en `error`. Una lectura caída no es
+      // «cero visitas», y una credencial sin ficha no es un socio con el nombre del QR.
+      const fallo = mRes.error || vRes.error;
+      if (fallo) throw fallo;
+      if (!mRes.data) {
+        setPhase('scan');
+        showToast(`La credencial ${p.id} no tiene ficha`, 'err');
+        return;
+      }
+      setMember(mRes.data);
       setCount((vRes.data || []).length);
       setPhase('confirm');
-    } catch {
+    } catch (e) {
       setPhase('scan');
-      showToast('Error consultando datos', 'err');
+      showToast('No se pudo consultar al socio: ' + (e?.message || e), 'err');
     }
   }
 
+  // Sin cámara o con el QR ilegible: la credencial tecleada entra por el mismo camino.
+  const [manual, setManual] = useState('');
+  function submitManual(e) {
+    e.preventDefault();
+    const id = manual.trim().toUpperCase();
+    if (!id) return;
+    setManual('');
+    handleScan(`PPGJ|${id}|`);
+  }
+
   async function confirmVisit() {
-    if (window.PPSb) {
-      await window.PPSb.logVisit(parsed.id, memberInfo?.name || parsed.name, court);
+    // Una visita que la base no guardó no se celebra: la pantalla de «guardada» sale
+    // solo con la respuesta buena. Un QR de alguien sin ficha la rechaza la llave
+    // foránea, y el motivo se dice.
+    const { error } = await window.PPSb.logVisit(parsed.id, court);
+    if (error) {
+      showToast('No se registró la visita: ' + error.message, 'err');
+      return;
     }
     if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
     setToday(c => c + 1);
@@ -404,6 +472,14 @@ function ScannerScreen() {
       </div>
 
       {phase === 'scan'    && <Scanner active onScan={handleScan}/>}
+      {phase === 'scan'    && (
+        <form className="field" onSubmit={submitManual} style={{display:'flex', gap:8, margin:'12px 0'}}>
+          <input value={manual} onChange={e => setManual(e.target.value)}
+            placeholder="¿No lee el QR? Escribe la credencial (PP-26-…)" aria-label="Credencial del socio"
+            style={{flex:1}} />
+          <button type="submit" className="btn btn-ghost" disabled={!manual.trim()}>Buscar</button>
+        </form>
+      )}
       {phase === 'lookup'  && (
         <div className="mp-lookup fade-in">
           <div className="mp-spinner"/>
@@ -907,7 +983,10 @@ function TournamentRosterTab({ ann, signups, pairs, phones, onChanged }) {
   const pairedIds = pairs.flatMap(p => [p.member_id_1, p.member_id_2].filter(Boolean));
 
   async function handlePick(row, member) {
-    await window.PPSb.upsertPair(ann.id, row.member_id_1, row.member_name_1, member.member_id, member.name);
+    // Un socio va en member_id_2; alguien sin ficha, como invitado (guest_name_2).
+    const { error } = await window.PPSb.upsertPair(ann.id, row.member_id_1,
+      member.member_id || null, member.member_id ? null : member.name);
+    if (error) { alert('No se guardó la pareja: ' + error.message); return; }
     setPickerFor(null);
     onChanged();
   }
@@ -1537,7 +1616,7 @@ function SettingsScreen({ onLogout }) {
         <div className="set-row"><span>Club</span><strong>{cfg.club?.name||'Padel Park'} · {cfg.club?.city||''}</strong></div>
       </div>
       <div className="set-card">
-        <div className="set-row"><span>Versión</span><strong>v2.1 · Supabase</strong></div>
+        <div className="set-row"><span>Versión</span><strong>v3.0 · base del POS</strong></div>
       </div>
       <h3 style={{marginTop:22}}>Instrucciones</h3>
       <ol className="steps-list">
@@ -1567,7 +1646,7 @@ function AdminEasterEgg({ onClose }) {
           <img src="assets/logo-navy.jpg" alt="PP" />
         </div>
         <div className="ee-name">Padel Park Gran Jardín</div>
-        <div className="ee-version">v2.1 · Panel de Recepción</div>
+        <div className="ee-version">v3.0 · Panel de Recepción</div>
         <div className="ee-divider" />
         <div className="ee-made">Desarrollado por</div>
         <div className="ee-creator">ProcesaLab</div>
@@ -1684,14 +1763,41 @@ function AdminSidebar({ tab, setTab, cfg, onLogoTap }) {
 // AdminApp shell
 // ─────────────────────────────────────────────────────────────
 function AdminApp() {
-  const [authed,      setAuthed]      = useState(() => localStorage.getItem(ADMIN_AUTH_KEY) === '1');
+  // 'cargando' | 'sin-sesion' | 'sin-acceso' (pregunté y no) | 'no-se' (no pude preguntar) | 'personal'
+  const [acceso,      setAcceso]      = useState('cargando');
+  const [motivo,      setMotivo]      = useState(null);
   const [tab,         setTab]         = useState('scan');
   const [viewMember,  setViewMember]  = useState(null); // { id, name }
   const [logoTaps,    setLogoTaps]    = useState(0);
   const [showEgg,     setShowEgg]     = useState(false);
   const tapResetRef = useRef(null);
 
-  function logout() { localStorage.removeItem(ADMIN_AUTH_KEY); setAuthed(false); }
+  async function comprobarAcceso() {
+    setAcceso('cargando');
+    setMotivo(null);
+    const { data: { session } } = await window.PPSb.getSession();
+    if (!session) { setAcceso('sin-sesion'); return; }
+    const { data, error } = await window.PPSb.esPersonal();
+    if (error) { setMotivo(error.message); setAcceso('no-se'); return; }
+    setAcceso(data === true ? 'personal' : 'sin-acceso');
+  }
+
+  useEffect(() => {
+    // La bandera del PIN viejo ya no abre nada; se borra para que no quede nada que lo parezca.
+    try { localStorage.removeItem(ADMIN_AUTH_KEY); } catch {}
+    comprobarAcceso();
+    const { data: { subscription } } = window.PPSb.onAuthChange((event) => {
+      if (event === 'SIGNED_OUT') { setAcceso('sin-sesion'); setViewMember(null); }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  async function logout() {
+    await window.PPSb.signOut();
+    setViewMember(null);
+    setTab('scan');
+    setAcceso('sin-sesion');
+  }
 
   function handleLogoTap() {
     clearTimeout(tapResetRef.current);
@@ -1705,7 +1811,11 @@ function AdminApp() {
     }
   }
 
-  if (!authed) return <Login onAuth={() => setAuthed(true)} />;
+  if (acceso === 'cargando') return <LoginShell lead="Comprobando la sesión…" />;
+  if (acceso === 'sin-sesion') return <Login onEntered={comprobarAcceso} />;
+  if (acceso !== 'personal') {
+    return <SinAcceso acceso={acceso} motivo={motivo} onRetry={comprobarAcceso} onLogout={logout} />;
+  }
 
   const cfg = window.PPGJ_CONFIG || {};
   return (

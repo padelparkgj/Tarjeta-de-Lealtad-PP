@@ -38,6 +38,9 @@
   <script src="api.js"></script>
 
   <!-- Supabase -->
+  <!-- La sesión de personal del panel se guarda aparte de la del socio: las dos
+       páginas comparten dominio y, sin esto, compartirían sesión en el mismo aparato. -->
+  <script>window.PP_AUTH_STORAGE_KEY = 'pp-lealtad-recepcion-auth';</script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="supabase-client.js"></script>
 

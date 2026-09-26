@@ -2,7 +2,7 @@
 // Network-first strategy: always tries to get fresh content,
 // falls back to cache only when offline.
 
-const CACHE = 'ppgj-v2';
+const CACHE = 'ppgj-v3';  // v3: la base del POS; el caché viejo trae config.js apuntando a la otra
 
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', e => {

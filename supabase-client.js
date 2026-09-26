@@ -1,14 +1,63 @@
 // ─────────────────────────────────────────────────────────────
-// Supabase client — auth + members table
+// Supabase client — auth + datos de la lealtad
 // ─────────────────────────────────────────────────────────────
+// La base es la del POS (septiembre de 2026). Tres cambios de forma respecto a la
+// base vieja se absorben AQUÍ, para que las pantallas sigan recibiendo lo mismo:
+//
+//  · members.id ya no es el id de la cuenta: la cuenta vive en members.user_id.
+//  · visits, signups y tournament_pairs ya no copian el nombre: se lee de members
+//    por la llave foránea (member_id → members.member_id) y se devuelve como
+//    member_name / member_name_1 / member_name_2, que es lo que leen las pantallas.
+//  · El compañero de pareja es un socio (member_id_2) o un invitado (guest_name_2),
+//    nunca los dos: la base lo exige con un check.
+//
+// ⚠️ La credencial (member_id) la genera la base. Nada aquí la inventa.
 (function () {
   const cfg = window.PPGJ_CONFIG;
-  const sb  = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey);
+  // El panel de recepción guarda su sesión aparte (Admin.html fija PP_AUTH_STORAGE_KEY):
+  // las dos páginas viven en el mismo dominio, y sin esto la sesión de personal del
+  // panel sería también la sesión de la página de socios en ese aparato.
+  const auth = window.PP_AUTH_STORAGE_KEY ? { storageKey: window.PP_AUTH_STORAGE_KEY } : {};
+  const sb  = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey, { auth });
+
+  // ── Nombres leídos de members ─────────────────────────────
+  const SEL_PAREJA = '*, m1:members!member_id_1(name), m2:members!member_id_2(name)';
+
+  const conNombre = (row) => {
+    if (!row) return row;
+    const { members, ...resto } = row;
+    return { ...resto, member_name: members?.name || '' };
+  };
+  const pareja = (row) => {
+    if (!row) return row;
+    const { m1, m2, ...resto } = row;
+    return {
+      ...resto,
+      member_name_1: m1?.name || '',
+      member_name_2: row.member_id_2 ? (m2?.name || '') : (row.guest_name_2 || null),
+    };
+  };
+  const mapear = (fn) => (res) => (res.error || !res.data) ? res : { ...res, data: Array.isArray(res.data) ? res.data.map(fn) : fn(res.data) };
+
+  // El compañero va en una sola de las dos columnas (check de la base).
+  const companero = (memberId2, nombre2) => memberId2
+    ? { member_id_2: memberId2, guest_name_2: null }
+    : { member_id_2: null, guest_name_2: (nombre2 && nombre2.trim()) || null };
 
   window.PPSb = {
     // ── Auth ──────────────────────────────────────────────────
-    signUp(email, password) {
-      return sb.auth.signUp({ email, password });
+    // Los datos de la ficha viajan en los metadatos de la cuenta: el proyecto pide
+    // confirmar el correo, así que al registrarse todavía no hay sesión y la ficha no
+    // se puede crear en ese momento. Se crea en el primer inicio de sesión
+    // (vincularSocio), leyendo de aquí lo que la persona escribió.
+    signUp(email, password, ficha) {
+      return sb.auth.signUp({
+        email, password,
+        options: {
+          data: ficha,
+          emailRedirectTo: location.origin + location.pathname,
+        },
+      });
     },
     signIn(email, password) {
       return sb.auth.signInWithPassword({ email, password });
@@ -19,19 +68,37 @@
     getSession() {
       return sb.auth.getSession();
     },
+    getUser() {
+      return sb.auth.getUser();
+    },
     onAuthChange(callback) {
       return sb.auth.onAuthStateChange(callback);
     },
+    // ¿Esta sesión es de personal del club? La misma función que usan las políticas.
+    esPersonal() {
+      return sb.rpc('es_personal');
+    },
 
     // ── Members table ─────────────────────────────────────────
-    saveMember(userId, data) {
-      return sb.from('members').upsert({ id: userId, ...data });
-    },
+    // La ficha de la cuenta con sesión. `maybeSingle`: no tener ficha no es un error,
+    // es el caso de quien acaba de confirmar su correo.
     getMember(userId) {
-      return sb.from('members').select('*').eq('id', userId).single();
+      return sb.from('members').select('*').eq('user_id', userId).maybeSingle();
+    },
+    // La función decide sola: enlaza la ficha sin cuenta que tenga el correo de la
+    // sesión (conserva credencial y visitas) o crea una nueva. Devuelve el member_id.
+    vincularSocio(nombre, telefono, birth) {
+      return sb.rpc('vincular_socio', {
+        p_nombre:   nombre,
+        p_telefono: telefono || null,
+        p_birth:    birth || null,   // la columna es date: '' no es una fecha
+      });
+    },
+    updateMyLevel(userId, level) {
+      return sb.from('members').update({ level }).eq('user_id', userId).select('member_id');
     },
     getMemberByMemberId(memberId) {
-      return sb.from('members').select('*').eq('member_id', memberId).single();
+      return sb.from('members').select('*').eq('member_id', memberId).maybeSingle();
     },
     getAllMembers() {
       return sb.from('members')
@@ -40,24 +107,26 @@
     },
 
     // ── Visits table ──────────────────────────────────────────
-    logVisit(memberId, memberName, court) {
+    // Sin member_name: el nombre está en members, y quién la registró lo pone la base.
+    logVisit(memberId, court) {
       return sb.from('visits').insert({
-        member_id:   memberId,
-        member_name: memberName || '',
-        court:       court || '01',
+        member_id: memberId,
+        court:     court || '01',
       });
     },
     getMemberVisits(memberId) {
       return sb.from('visits')
-        .select('*')
+        .select('*, members(name)')
         .eq('member_id', memberId)
-        .order('visited_at', { ascending: false });
+        .order('visited_at', { ascending: false })
+        .then(mapear(conNombre));
     },
     getAllVisits() {
       return sb.from('visits')
-        .select('*')
+        .select('*, members(name)')
         .order('visited_at', { ascending: false })
-        .limit(500);
+        .limit(500)
+        .then(mapear(conNombre));
     },
     deleteVisit(id) {
       return sb.from('visits').delete().eq('id', id);
@@ -93,11 +162,10 @@
     },
 
     // ── Signups table ─────────────────────────────────────────
-    signUpForEvent(announcementId, memberId, memberName) {
+    signUpForEvent(announcementId, memberId) {
       return sb.from('signups').upsert({
         announcement_id: announcementId,
         member_id:       memberId,
-        member_name:     memberName || '',
       });
     },
     cancelSignup(announcementId, memberId) {
@@ -106,12 +174,15 @@
         .eq('member_id', memberId);
     },
     getMemberSignups(memberId) {
-      return sb.from('signups').select('*').eq('member_id', memberId).order('signed_up_at', { ascending: false });
+      return sb.from('signups').select('*, members(name)').eq('member_id', memberId)
+        .order('signed_up_at', { ascending: false })
+        .then(mapear(conNombre));
     },
     getEventSignups(announcementId) {
-      return sb.from('signups').select('*')
+      return sb.from('signups').select('*, members(name)')
         .eq('announcement_id', announcementId)
-        .order('signed_up_at');
+        .order('signed_up_at')
+        .then(mapear(conNombre));
     },
 
     // ── Tournaments (config) ───────────────────────────────────
@@ -124,19 +195,20 @@
 
     // ── Tournament pairs (parejas) ──────────────────────────────
     getTournamentPairs(announcementId) {
-      return sb.from('tournament_pairs').select('*').eq('announcement_id', announcementId).order('created_at');
+      return sb.from('tournament_pairs').select(SEL_PAREJA).eq('announcement_id', announcementId).order('created_at')
+        .then(mapear(pareja));
     },
-    assignPartner(pairId, memberId2, memberName2) {
-      return sb.from('tournament_pairs').update({ member_id_2: memberId2, member_name_2: memberName2 || '' }).eq('id', pairId);
+    assignPartner(pairId, memberId2) {
+      return sb.from('tournament_pairs').update(companero(memberId2, null)).eq('id', pairId);
     },
-    upsertPair(announcementId, memberId1, memberName1, memberId2, memberName2) {
+    upsertPair(announcementId, memberId1, memberId2, guestName2) {
       return sb.from('tournament_pairs').upsert({
-        announcement_id: announcementId, member_id_1: memberId1, member_name_1: memberName1 || '',
-        member_id_2: memberId2 || null, member_name_2: memberName2 || null,
+        announcement_id: announcementId, member_id_1: memberId1,
+        ...companero(memberId2, guestName2),
       }, { onConflict: 'announcement_id,member_id_1' });
     },
     unassignPartner(pairId) {
-      return sb.from('tournament_pairs').update({ member_id_2: null, member_name_2: null }).eq('id', pairId);
+      return sb.from('tournament_pairs').update({ member_id_2: null, guest_name_2: null }).eq('id', pairId);
     },
 
     // ── Tournament matches (rol de juego + resultados) ──────────
@@ -147,9 +219,10 @@
     },
     getTournamentMatches(announcementId) {
       return sb.from('tournament_matches')
-        .select('*, pair_a:tournament_pairs!tournament_matches_pair_a_id_fkey(*), pair_b:tournament_pairs!tournament_matches_pair_b_id_fkey(*)')
+        .select(`*, pair_a:tournament_pairs!pair_a_id(${SEL_PAREJA}), pair_b:tournament_pairs!pair_b_id(${SEL_PAREJA})`)
         .eq('announcement_id', announcementId)
-        .order('match_start');
+        .order('match_start')
+        .then(mapear(m => ({ ...m, pair_a: pareja(m.pair_a), pair_b: pareja(m.pair_b) })));
     },
     recordMatchWinner(matchId, winnerPairId) {
       return sb.from('tournament_matches').update({ status: 'completed', winner_pair_id: winnerPairId }).eq('id', matchId);
@@ -162,12 +235,12 @@
     },
 
     // ── Combined tournament signup (signup + optional partner) ─
-    async signUpForTournament(announcementId, memberId, memberName, partnerMemberId, partnerName) {
-      const su = await sb.from('signups').upsert({ announcement_id: announcementId, member_id: memberId, member_name: memberName || '' });
+    async signUpForTournament(announcementId, memberId, partnerMemberId, partnerName) {
+      const su = await sb.from('signups').upsert({ announcement_id: announcementId, member_id: memberId });
       if (su.error) return su;
       return sb.from('tournament_pairs').upsert({
-        announcement_id: announcementId, member_id_1: memberId, member_name_1: memberName || '',
-        member_id_2: partnerMemberId || null, member_name_2: partnerName || null,
+        announcement_id: announcementId, member_id_1: memberId,
+        ...companero(partnerMemberId, partnerName),
       }, { onConflict: 'announcement_id,member_id_1' });
     },
 

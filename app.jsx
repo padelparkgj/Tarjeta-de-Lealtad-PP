@@ -1,26 +1,9 @@
 /* global React, ReactDOM, qrcode */
 const { useState, useEffect, useMemo, useRef, useCallback } = React;
 
-const STORAGE_KEY = 'pp_gj_member_v1';
-
-// ──────────────────────────────────────────────────────────────
-// Small util — deterministic hash from a string
-// ──────────────────────────────────────────────────────────────
-function hashStr(s) {
-  let h = 2166136261 >>> 0;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619) >>> 0;
-  }
-  return h >>> 0;
-}
-
-function memberIdFrom(name, email) {
-  const seed = hashStr((name || '') + '|' + (email || '') + '|' + Date.now());
-  const part = (seed % 9000 + 1000).toString();
-  const yr = new Date().getFullYear().toString().slice(-2);
-  return `PP-${yr}-${part}`;
-}
+// ⚠️ La credencial (PP-AA-NNNNN) la genera la base, con una secuencia y `unique`.
+// Aquí vivía memberIdFrom, que la inventaba en el navegador con 9,000 valores por
+// año y sin nada que impidiera repetir. No se vuelve a poner.
 
 function tierFor(visits) {
   if (visits >= 50) return { key: 'legend', label: 'Legend' };
@@ -201,7 +184,7 @@ function EasterEgg({ onClose }) {
           <img src="assets/logo-navy.jpg" alt="PP" />
         </div>
         <div className="ee-name">Padel Park Gran Jardín</div>
-        <div className="ee-version">v2.1 · Tarjeta de Lealtad</div>
+        <div className="ee-version">v3.0 · Tarjeta de Lealtad</div>
         <div className="ee-divider" />
         <div className="ee-made">Desarrollado por</div>
         <div className="ee-creator">ProcesaLab</div>
@@ -276,13 +259,19 @@ function LoginForm({ onBack, onSuccess }) {
 
     const { data, error: err } = await window.PPSb.signIn(email.trim().toLowerCase(), password);
     if (err) {
-      setError('Correo o contraseña incorrectos.');
+      // Tres causas, tres frases: el correo sin confirmar no es una contraseña mala,
+      // y la red caída tampoco.
+      setError(err.code === 'email_not_confirmed'
+        ? 'Todavía no confirmas tu correo. Abre el enlace que te enviamos y vuelve a entrar.'
+        : (err.status === 400 || err.code === 'invalid_credentials')
+          ? 'Correo o contraseña incorrectos.'
+          : 'No se pudo iniciar sesión: ' + err.message);
       setBusy(false);
       return;
     }
 
-    const { data: row } = await window.PPSb.getMember(data.user.id);
-    onSuccess(row ? { ...row, id: row.member_id } : null);
+    // La ficha la busca (o la crea) App, igual que al abrir la página con sesión.
+    onSuccess(data.user);
   }
 
   return (
@@ -488,10 +477,11 @@ function Welcome({ onStart, onLogin }) {
 // ──────────────────────────────────────────────────────────────
 // Registration form
 // ──────────────────────────────────────────────────────────────
-function RegisterForm({ onBack, onSubmit, authError }) {
-  const [data, setData] = useState({
-    name: '', email: '', password: '', phone: '', birth: '', level: 'Intermedio', terms: false
-  });
+function RegisterForm({ onBack, onSubmit, authError, busy, inicial }) {
+  const [data, setData] = useState(() => ({
+    name: '', email: '', password: '', phone: '', birth: '', level: 'Intermedio', terms: false,
+    ...(inicial || {}), password: '',
+  }));
   const [errors, setErrors] = useState({});
 
   function set(k, v) { setData(d => ({...d, [k]: v})); setErrors(e => ({...e, [k]: null})); }
@@ -556,11 +546,95 @@ function RegisterForm({ onBack, onSubmit, authError }) {
 
           {authError && <p className="field-error">{authError}</p>}
 
-          <button type="submit" className="btn btn-primary" style={{width:'100%'}}>
-            Generar mi tarjeta
-            <span className="arrow"><Ic.arrow style={{width:18,height:18}} /></span>
+          <button type="submit" className="btn btn-primary" style={{width:'100%'}} disabled={busy}>
+            {busy ? 'Creando tu cuenta…' : 'Generar mi tarjeta'}
+            {!busy && <span className="arrow"><Ic.arrow style={{width:18,height:18}} /></span>}
           </button>
           <button type="button" className="btn btn-ghost" style={{width:'100%', marginTop: 10}} onClick={onBack}>Regresar</button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// Confirma tu correo — el proyecto no deja entrar sin confirmar
+// ──────────────────────────────────────────────────────────────
+// Al registrarse no hay sesión todavía, así que la tarjeta no existe aún: se crea
+// en el primer inicio de sesión. Esta pantalla lo dice en vez de fingir una tarjeta.
+function ConfirmarCorreo({ email, onLogin }) {
+  return (
+    <div className="scroll fade-in">
+      <TopBar right="03 / 04" />
+      <div className="form-wrap">
+        <div className="step">Paso 2 de 2</div>
+        <h2>Revisa<br/>tu correo.</h2>
+        <p className="sub">
+          Te enviamos un enlace a <strong>{email}</strong>. Ábrelo para confirmar tu cuenta y
+          después inicia sesión aquí: en ese momento se crea tu tarjeta con tu número de socio.
+        </p>
+        <p className="sub">
+          Si ese correo ya tenía cuenta, no llega nada nuevo: inicia sesión con tu contraseña.
+        </p>
+        <button type="button" className="btn btn-primary" style={{width:'100%'}} onClick={onLogin}>
+          Ya confirmé, iniciar sesión
+          <span className="arrow"><Ic.arrow style={{width:18,height:18}} /></span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// Tu ficha — cuando la sesión existe y la tarjeta todavía no
+// ──────────────────────────────────────────────────────────────
+// Sale en dos casos: la cuenta no trae los datos del registro, o crear/enlazar la
+// ficha falló. En el segundo, el motivo va arriba y los datos se conservan para
+// reintentar: nadie se queda en la bienvenida sin saber qué pasó.
+function FichaForm({ inicial, error, busy, onSubmit, onLogout }) {
+  const [d, setD] = useState(() => ({ name: '', phone: '', birth: '', ...(inicial || {}) }));
+  const [errs, setErrs] = useState({});
+  const set = (k, v) => { setD(x => ({ ...x, [k]: v })); setErrs(e => ({ ...e, [k]: null })); };
+
+  function submit(e) {
+    e.preventDefault();
+    const err = {};
+    if (!d.name.trim() || d.name.trim().length < 2) err.name = true;
+    if (d.phone && !/^\+?\d[\d\s\-]{7,}$/.test(d.phone)) err.phone = true;
+    setErrs(err);
+    if (Object.keys(err).length === 0) onSubmit({ ...(inicial || {}), ...d, name: d.name.trim() });
+  }
+
+  return (
+    <div className="scroll fade-in">
+      <TopBar right="TU FICHA" />
+      <div className="form-wrap">
+        <h2>{error ? <>No se creó<br/>tu tarjeta.</> : <>Completa<br/>tu ficha.</>}</h2>
+        {error
+          ? <p className="field-error">{error}</p>
+          : <p className="sub">Tu cuenta ya existe. Con estos datos creamos tu tarjeta, o la enlazamos si el club ya te tenía registrado con este correo.</p>}
+
+        <form onSubmit={submit}>
+          <div className="field">
+            <label>Nombre completo</label>
+            <input value={d.name} onChange={e=>set('name', e.target.value)} placeholder="María Fernández" style={errs.name ? {borderColor:'#d44'} : null} />
+          </div>
+          <div className="field-row">
+            <div className="field">
+              <label>Teléfono</label>
+              <input value={d.phone} onChange={e=>set('phone', e.target.value)} placeholder="+52 81 ..." style={errs.phone ? {borderColor:'#d44'} : null} />
+            </div>
+            <div className="field">
+              <label>Cumpleaños</label>
+              <input type="date" value={d.birth || ''} onChange={e=>set('birth', e.target.value)} />
+            </div>
+          </div>
+          <button type="submit" className="btn btn-primary" style={{width:'100%'}} disabled={busy}>
+            {busy ? 'Creando tu tarjeta…' : error ? 'Reintentar' : 'Crear mi tarjeta'}
+          </button>
+          <button type="button" className="btn btn-ghost" style={{width:'100%', marginTop:10}} onClick={onLogout}>
+            Cerrar sesión
+          </button>
         </form>
       </div>
     </div>
@@ -1060,8 +1134,12 @@ function PartnerPickerModal({ excludeMemberIds = [], onPick, onSkip, onClose }) 
   useEffect(() => {
     if (!window.PPSb) { setLoading(false); return; }
     window.PPSb.getAllMembers().then(({ data }) => {
+      const otros = (data || []).filter(m => !excludeMemberIds.includes(m.member_id));
       setMembers(data || []);
       setLoading(false);
+      // Un socio solo puede leer su propia ficha en la base nueva: si no ve a nadie más,
+      // la búsqueda no es un camino, y la pareja se escribe como invitado.
+      if (otros.length === 0) setMode('manual');
     });
   }, []);
 
@@ -1185,7 +1263,7 @@ function AnnCard({ ann, member, onDismiss, dismissible = true }) {
     if (!member || !window.PPSb) return;
     setSigBusy(true);
     const mid = member.member_id || member.id;
-    await window.PPSb.signUpForEvent(ann.id, mid, member.name);
+    await window.PPSb.signUpForEvent(ann.id, mid);
     setSignedUp(true);
     setSigBusy(false);
   }
@@ -1194,7 +1272,7 @@ function AnnCard({ ann, member, onDismiss, dismissible = true }) {
     if (!member || !window.PPSb) return;
     setSigBusy(true);
     const mid = member.member_id || member.id;
-    await window.PPSb.signUpForTournament(ann.id, mid, member.name, partner?.member_id || null, partner?.name || null);
+    await window.PPSb.signUpForTournament(ann.id, mid, partner?.member_id || null, partner?.name || null);
     setSignedUp(true);
     setSigBusy(false);
     setShowPicker(false);
@@ -1390,36 +1468,110 @@ function App() {
   // Tweaks
   const [tweaks, setTweak] = (window.useTweaks || (() => [TWEAK_DEFAULTS, () => {}]))(TWEAK_DEFAULTS);
 
-  // Screen: loading | welcome | login | form | generating | main
+  // Screen: loading | welcome | login | form | confirmar | ficha | generating | main
   const [screen, setScreen] = useState('loading');
   const [tab, setTab] = useState('card');
   const [pendingForm, setPendingForm] = useState(null);
   const [member, setMember] = useState(null);
   const [qrOpen, setQrOpen] = useState(false);
   const [authError, setAuthError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [emailEnviado, setEmailEnviado] = useState('');
+  const [fichaError, setFichaError] = useState(null);
+  const [sesionUser, setSesionUser] = useState(null);
+  const [avisoMain, setAvisoMain] = useState(null);   // algo que salió a medias, sin bloquear
+  const vinculoRef = useRef(null);
+
+  const conCredencial = (row) => ({ ...row, id: row.member_id });
+
+  // ── La ficha de la sesión ──────────────────────────────────
+  // Una cuenta con sesión tiene ficha, o se le crea/enlaza en este momento con
+  // vincular_socio. Los datos salen de lo que la persona escribió al registrarse
+  // (viajan en los metadatos de la cuenta); si no están, se le piden.
+  async function entrar(user) {
+    setSesionUser(user);
+    const { data, error } = await window.PPSb.getMember(user.id);
+    if (error) {
+      setFichaError('No se pudo leer tu ficha: ' + error.message);
+      setPendingForm(fichaDeMetadatos(user));
+      setScreen('ficha');
+      return;
+    }
+    if (data) {
+      setMember(conCredencial(data));
+      setScreen('main');
+      return;
+    }
+    const ficha = fichaDeMetadatos(user);
+    if (ficha.name) { arrancarVinculo(user, ficha); return; }
+    setFichaError(null);
+    setPendingForm(ficha);
+    setScreen('ficha');
+  }
+
+  function fichaDeMetadatos(user) {
+    const md = user.user_metadata || {};
+    return { name: md.name || '', phone: md.phone || '', birth: md.birth || '', level: md.level || '', email: user.email };
+  }
+
+  // La animación y la llamada van a la vez; la pantalla no avanza hasta que la base
+  // contesta, y si contesta que no, lo que se ve es el motivo.
+  function arrancarVinculo(user, ficha) {
+    setPendingForm(ficha);
+    vinculoRef.current = vincular(user, ficha);
+    setScreen('generating');
+  }
+
+  async function vincular(user, ficha) {
+    const { data: memberId, error } = await window.PPSb.vincularSocio(ficha.name, ficha.phone, ficha.birth);
+    if (error) return { error: 'No se pudo crear tu tarjeta: ' + error.message };
+
+    const { data: row, error: lecturaErr } = await window.PPSb.getMember(user.id);
+    if (lecturaErr || !row) {
+      return { error: `Tu tarjeta se creó${memberId ? ' (' + memberId + ')' : ''}, pero no se pudo leer: ` +
+        (lecturaErr ? lecturaErr.message : 'la ficha no aparece con esta cuenta') + '. Vuelve a intentarlo.' };
+    }
+
+    // El nivel no es parte de vincular_socio: se escribe aparte, y si falla la tarjeta
+    // ya existe; solo se avisa.
+    let aviso = null;
+    if (ficha.level && ficha.level !== row.level) {
+      const { data: upd, error: nivelErr } = await window.PPSb.updateMyLevel(user.id, ficha.level);
+      if (nivelErr || !upd || upd.length === 0) aviso = 'Tu tarjeta está lista, pero no se guardó tu nivel de juego.';
+      else row.level = ficha.level;
+    }
+
+    if (window.PPGJ) window.PPGJ.register({ ...row, id: row.member_id, joinedAt: row.joined_at });
+    return { member: row, aviso };
+  }
+
+  async function handleGenDone() {
+    const r = await vinculoRef.current;
+    vinculoRef.current = null;
+    if (r.error) {
+      setFichaError(r.error);
+      setScreen('ficha');
+      return;
+    }
+    setAvisoMain(r.aviso || null);
+    setMember(conCredencial(r.member));
+    setScreen('main');
+    setTab('card');
+  }
 
   // Check Supabase session on mount
   useEffect(() => {
     if (!window.PPSb) { setScreen('welcome'); return; }
 
     window.PPSb.getSession().then(({ data: { session } }) => {
-      if (session) {
-        window.PPSb.getMember(session.user.id).then(({ data }) => {
-          if (data) {
-            setMember({ ...data, id: data.member_id });
-            setScreen('main');
-          } else {
-            setScreen('welcome');
-          }
-        });
-      } else {
-        setScreen('welcome');
-      }
+      if (session) entrar(session.user);
+      else setScreen('welcome');
     });
 
     const { data: { subscription } } = window.PPSb.onAuthChange((event, session) => {
       if (event === 'SIGNED_OUT') {
         setMember(null);
+        setSesionUser(null);
         setScreen('welcome');
         setTab('card');
       }
@@ -1430,67 +1582,48 @@ function App() {
   function handleStart() { setAuthError(null); setScreen('form'); }
   function handleLogin() { setAuthError(null); setScreen('login'); }
 
-  function handleLoginSuccess(memberData) {
-    if (memberData) {
-      setMember(memberData);
-      setScreen('main');
-    } else {
-      setScreen('welcome');
-    }
+  function handleLoginSuccess(user) {
+    setScreen('loading');
+    entrar(user);
   }
 
-  function handleSubmitForm(data) {
+  async function handleSubmitForm(data) {
+    setBusy(true);
+    setAuthError(null);
     setPendingForm(data);
-    setScreen('generating');
+    const email = data.email.trim().toLowerCase();
+    const { data: authData, error: authErr } = await window.PPSb.signUp(email, data.password, {
+      name: data.name.trim(), phone: data.phone, birth: data.birth, level: data.level,
+    });
+    setBusy(false);
+    if (authErr) {
+      // El límite de correos del proyecto es el primer muro real del registro: se dice
+      // qué es, no el texto crudo de la API.
+      setAuthError(authErr.code === 'over_email_send_rate_limit' || /rate limit/i.test(authErr.message)
+        ? 'No se creó tu cuenta: el club alcanzó el límite de correos de confirmación por hora. Intenta de nuevo más tarde.'
+        : authErr.code === 'email_address_invalid' || /is invalid/i.test(authErr.message)
+          ? 'No se creó tu cuenta: ese correo no es válido.'
+          : 'No se creó tu cuenta: ' + authErr.message);
+      return;
+    }
+    // Con confirmación de correo no hay sesión todavía: la tarjeta se crea al entrar.
+    if (!authData.session) {
+      setEmailEnviado(email);
+      setScreen('confirmar');
+      return;
+    }
+    arrancarVinculo(authData.user, { ...data, name: data.name.trim(), email });
   }
 
-  async function handleGenDone() {
-    const now = new Date().toISOString();
-    const id  = memberIdFrom(pendingForm.name, pendingForm.email);
-
-    if (window.PPSb) {
-      const { data: authData, error: authErr } = await window.PPSb.signUp(
-        pendingForm.email.trim().toLowerCase(),
-        pendingForm.password
-      );
-      if (authErr) {
-        setAuthError(authErr.message);
-        setScreen('form');
-        return;
-      }
-      if (authData.user) {
-        await window.PPSb.saveMember(authData.user.id, {
-          member_id:  id,
-          name:       pendingForm.name,
-          email:      pendingForm.email.trim().toLowerCase(),
-          phone:      pendingForm.phone,
-          birth:      pendingForm.birth,
-          level:      pendingForm.level,
-          joined_at:  now,
-        });
-      }
-    }
-
-    const m = {
-      id,
-      member_id: id,
-      name:      pendingForm.name,
-      email:     pendingForm.email,
-      phone:     pendingForm.phone,
-      birth:     pendingForm.birth,
-      level:     pendingForm.level,
-      joined_at: now,
-    };
-    setMember(m);
-    setScreen('main');
-    setTab('card');
-
-    if (window.PPGJ) window.PPGJ.register({ id, ...m, joinedAt: now });
+  function handleFichaSubmit(ficha) {
+    if (!sesionUser) { setScreen('welcome'); return; }
+    arrancarVinculo(sesionUser, ficha);
   }
 
   async function handleReset() {
     if (window.PPSb) await window.PPSb.signOut();
     setMember(null);
+    setSesionUser(null);
     setScreen('welcome');
     setTab('card');
   }
@@ -1501,11 +1634,18 @@ function App() {
         {screen === 'loading'    && <LoadingScreen />}
         {screen === 'welcome'    && <Welcome onStart={handleStart} onLogin={handleLogin} />}
         {screen === 'login'      && <LoginForm onBack={()=>setScreen('welcome')} onSuccess={handleLoginSuccess} />}
-        {screen === 'form'       && <RegisterForm onBack={()=>setScreen('welcome')} onSubmit={handleSubmitForm} authError={authError} />}
+        {screen === 'form'       && <RegisterForm onBack={()=>setScreen('welcome')} onSubmit={handleSubmitForm} authError={authError} busy={busy} inicial={pendingForm} />}
+        {screen === 'confirmar'  && <ConfirmarCorreo email={emailEnviado} onLogin={handleLogin} />}
+        {screen === 'ficha'      && <FichaForm inicial={pendingForm} error={fichaError} onSubmit={handleFichaSubmit} onLogout={handleReset} />}
         {screen === 'generating' && <Generating formData={pendingForm} onDone={handleGenDone} />}
 
         {screen === 'main' && member && (
           <>
+            {avisoMain && (
+              <div className="field-error" role="status" style={{margin:'10px 16px 0'}} onClick={() => setAvisoMain(null)}>
+                {avisoMain}
+              </div>
+            )}
             {tab === 'card'     && <CardScreen member={member} cardStyle={tweaks.cardStyle} onOpenQr={()=>setQrOpen(true)} />}
             {tab === 'torneos'  && <TournamentsScreen member={member} />}
             {tab === 'rewards'  && <RewardsScreen />}

@@ -14,7 +14,7 @@
     const url = cfg.webhookUrl;
     const body = {
       action,
-      token: cfg.adminToken,
+      token: cfg.sheetToken,
       payload,
       ts: Date.now(),
     };
