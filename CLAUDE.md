@@ -33,6 +33,7 @@ two apps.
 - **Linking an existing card needs the same email AND the same phone** (last 10 digits). `vincular_socio` has three refusals, all `P0001`, translated in `falloDeVinculo` (`app.jsx`): phone mismatch → the person fixes it on the same screen and retries (the account already exists: never send them to register again); card without phone, or several cards with that email → front desk. Anything else → the reason and a retry.
 - **The reception panel logs in with a POS staff account** and checks `es_personal()`. There is no PIN.
 - **No personal data leaves for a Google Sheet anymore.** Until v3.0 the sign-up form also posted name, email, phone and birthday to an Apps Script, guarded by a token published in `config.js`. Edgar turned it off on 26 Sep 2026: the data lives in the base, and the sheet was a copy behind a public password. `api.js`, `apps-script.gs`, `webhookUrl` and `sheetToken` are gone. **`config.js` carries nothing secret** — do not put a token back in it.
+- **Nothing points to the old loyalty project (`fsuqslgmilyqkutyvvdl`) anymore**, in code or in the base: the 5 announcement images were copied byte for byte to the POS bucket on 26 Sep 2026 and `image_url` rewritten (`docs/imagenes-avisos-2026-09-26.md`, old → new). Only git history and that doc still name it. It can be shut down.
 - Manual verification procedure: `PRUEBAS.md`. There is deliberately no automated test suite here — this app will be absorbed into the POS.
 - Service worker (`sw.js`) uses network-first + active `registration.update()` checks on focus/visibility so installed PWAs pick up new deploys without a manual reinstall.
 
@@ -41,9 +42,6 @@ two apps.
 - **El Apps Script sigue desplegado en Google** con la hoja y sus copias: la app ya no le manda
   nada, pero su URL y su token viajaron publicados. Apagarlo (Implementar → Administrar
   implementaciones → Archivar) y decidir qué pasa con la hoja es de Edgar.
-- **Las imágenes de los avisos copiados apuntan al proyecto viejo** (`fsuqslgmilyqkutyvvdl`).
-  Se ven mientras ese proyecto viva; el bucket `announcements` del POS está vacío. Las
-  nuevas ya se suben al del POS.
 - **Un socio solo puede leer su propia ficha**: el buscador de pareja del socio ya no encuentra
   a otros socios y abre en «Escribir nombre» (la pareja queda como invitado). Los nombres de
   los rivales en la tarjeta del socio probablemente salen vacíos por lo mismo — no medido.
