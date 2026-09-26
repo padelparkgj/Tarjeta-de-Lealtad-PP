@@ -27,12 +27,11 @@ function isBirthdayMonth(birth) {
   const m = parseInt((birth.split('-')[1] || birth.split('/')[1] || '0'));
   return m === new Date().getMonth() + 1;
 }
-// Promotion for visit number N
-function promoFor(n) {
-  if (n % 6 === 0) return 'free';
-  if (n % 3 === 0) return 'silver';
-  return null;
-}
+// La regla de visitas vive en regla-visitas.js (window.PPRegla), la misma que lee la
+// tarjeta del socio. Aquí no se calcula ningún premio.
+const { reglaVisitas, premioDeVisita, premiosEn, CICLO } = window.PPRegla;
+const PUNTOS_CICLO = Array.from({ length: CICLO }, (_, i) => i + 1);
+const nesima = n => `${n}.ª`;
 // Parse QR payload: "PPGJ|PP-26-1234|Maria Fernandez"
 function parseQr(text) {
   if (!text) return null;
@@ -228,12 +227,12 @@ function Scanner({ active, onScan }) {
 function MemberPanel({ member, visitCount, court, onConfirm, onCancel }) {
   const [busy, setBusy] = useState(false);
 
-  const thisVisit  = visitCount + 1;
-  const promo      = promoFor(thisVisit);
+  const regla      = reglaVisitas(visitCount);   // lo que toca en ESTA visita
+  const promo      = regla.premio;
   const birthday   = isBirthdayMonth(member.birth);
 
-  // 6-visit cycle progress (positions 1-6)
-  const filled = visitCount % 6;
+  // Sellos del ciclo actual (el ciclo es de 7 y vuelve a cero al completarse)
+  const filled = regla.enCiclo;
 
   async function confirm() {
     setBusy(true);
@@ -253,12 +252,15 @@ function MemberPanel({ member, visitCount, court, onConfirm, onCancel }) {
         <div className="mp-visits-n">{visitCount}</div>
         <div className="mp-visits-label">visitas acumuladas</div>
         <div className="mp-cycle">
-          {[1,2,3,4,5,6].map(i => (
-            <div key={i}
-              className={`cycle-dot ${i <= filled ? 'filled' : ''} ${i===3?'mark-silver':''} ${i===6?'mark-free':''}`}
-              title={i===3?'Silver':i===6?'Gratis':''}
-            />
-          ))}
+          {PUNTOS_CICLO.map(i => {
+            const p = reglaVisitas(i - 1).premio;
+            return (
+              <div key={i}
+                className={`cycle-dot ${i <= filled ? 'filled' : ''} ${p==='silver'?'mark-silver':''} ${p==='free'?'mark-free':''}`}
+                title={p==='silver'?'Silver':p==='free'?'Gratis':''}
+              />
+            );
+          })}
         </div>
         <div className="mp-cycle-legend">
           <span><span className="cd-silver"/>Silver</span>
@@ -332,15 +334,16 @@ function ConfettiEffect() {
 // Saved screen — shown after confirming visit
 // ─────────────────────────────────────────────────────────────
 function SavedScreen({ member, newTotal, onContinue }) {
-  const toFree   = 6 - (newTotal % 6);
-  const toSilver = 3 - (newTotal % 3);
-  const nextIsFree = toFree <= toSilver;
+  // Lo que fue la visita que se acaba de guardar, y lo que sigue: las dos, de la regla.
+  const estaFue    = premioDeVisita(newTotal);
+  const sigue      = reglaVisitas(newTotal);
+  const nextIsFree = sigue.hastaGratis <= sigue.hastaSilver;
   const nextLabel  = nextIsFree
-    ? `${toFree} visita${toFree!==1?'s':''} para cancha GRATIS`
-    : `${toSilver} visita${toSilver!==1?'s':''} para precio Silver`;
+    ? `Su ${nesima(newTotal + sigue.hastaGratis)} visita es GRATIS`
+    : `Su ${nesima(newTotal + sigue.hastaSilver)} visita es a precio Silver`;
 
-  const isFreeMilestone   = newTotal > 0 && newTotal % 6 === 0;
-  const isSilverMilestone = newTotal > 0 && newTotal % 3 === 0 && !isFreeMilestone;
+  const isFreeMilestone   = estaFue === 'free';
+  const isSilverMilestone = estaFue === 'silver';
 
   return (
     <div className="scan-result fade-in">
@@ -351,17 +354,15 @@ function SavedScreen({ member, newTotal, onContinue }) {
 
       {isFreeMilestone && (
         <div className="sr-milestone sr-milestone-free">
-          🎉 ¡Cancha GRATIS desbloqueada!
+          🎉 Esta visita fue GRATIS
         </div>
       )}
       {isSilverMilestone && (
         <div className="sr-milestone sr-milestone-silver">
-          ⚡ ¡Precio Silver desbloqueado!
+          ⚡ Esta visita fue a precio Silver
         </div>
       )}
-      {!isFreeMilestone && !isSilverMilestone && (
-        <div className="sr-next">{nextLabel}</div>
-      )}
+      <div className="sr-next">{nextLabel}</div>
 
       {(isFreeMilestone || isSilverMilestone) && <ConfettiEffect />}
 
@@ -651,7 +652,10 @@ function MemberProfileModal({ memberId, memberName: fallbackName, onClose }) {
 
   const displayName  = member?.name || fallbackName || memberId;
   const totalVisits  = visits.length;
-  const cycleFilled  = totalVisits % 6;
+  const cycleFilled  = reglaVisitas(totalVisits).enCiclo;
+  // Cuántas de sus visitas fueron Silver y cuántas gratis, contadas con la regla:
+  // antes eran floor(total/3) y floor(total/6), que contaban de más.
+  const premios      = premiosEn(totalVisits);
   const birth  = member?.birth    ? new Date(member.birth + 'T00:00:00').toLocaleDateString('es-MX',{day:'2-digit',month:'short'}) : null;
   const joined = member?.joined_at ? new Date(member.joined_at).toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}) : null;
 
@@ -680,15 +684,16 @@ function MemberProfileModal({ memberId, memberName: fallbackName, onClose }) {
             {/* Stats */}
             <div className="mp-modal-stats">
               <div className="mp-stat"><strong>{totalVisits}</strong><span>Visitas</span></div>
-              <div className="mp-stat"><strong>{Math.floor(totalVisits/6)}</strong><span>Canchas gratis</span></div>
-              <div className="mp-stat"><strong>{Math.floor(totalVisits/3)}</strong><span>Silvers</span></div>
+              <div className="mp-stat" data-premios-gratis={premios.gratis}><strong>{premios.gratis}</strong><span>Canchas gratis</span></div>
+              <div className="mp-stat" data-premios-silver={premios.silver}><strong>{premios.silver}</strong><span>Visitas Silver</span></div>
             </div>
 
             {/* Cycle */}
             <div className="mp-modal-cycle">
-              {[1,2,3,4,5,6].map(i => (
-                <div key={i} className={`cycle-dot ${i<=cycleFilled?'filled':''} ${i===3?'mark-silver':''} ${i===6?'mark-free':''}`}/>
-              ))}
+              {PUNTOS_CICLO.map(i => {
+                const p = reglaVisitas(i - 1).premio;
+                return <div key={i} className={`cycle-dot ${i<=cycleFilled?'filled':''} ${p==='silver'?'mark-silver':''} ${p==='free'?'mark-free':''}`}/>;
+              })}
             </div>
 
             {/* Member details (only if loaded from DB) */}
@@ -730,9 +735,9 @@ function MemberProfileModal({ memberId, memberName: fallbackName, onClose }) {
             <div className="mp-visit-list">
               {visits.map((v, i) => {
                 const visitNum = totalVisits - i;
-                const promo = promoFor(visitNum);
+                const promo = premioDeVisita(visitNum);
                 return (
-                  <div key={v.id} className="mp-visit-row">
+                  <div key={v.id} className="mp-visit-row" data-visita={visitNum} data-premio={promo || 'normal'}>
                     <div className="mp-visit-num">{visitNum}</div>
                     <div className="mp-visit-info">
                       <div className="mp-visit-date">{fmtDate(v.visited_at)}</div>
@@ -1616,7 +1621,7 @@ function SettingsScreen({ onLogout }) {
         <div className="set-row"><span>Club</span><strong>{cfg.club?.name||'Padel Park'} · {cfg.club?.city||''}</strong></div>
       </div>
       <div className="set-card">
-        <div className="set-row"><span>Versión</span><strong>v3.1 · base del POS</strong></div>
+        <div className="set-row"><span>Versión</span><strong>v3.2 · base del POS</strong></div>
       </div>
       <h3 style={{marginTop:22}}>Instrucciones</h3>
       <ol className="steps-list">
@@ -1646,7 +1651,7 @@ function AdminEasterEgg({ onClose }) {
           <img src="assets/logo-navy.jpg" alt="PP" />
         </div>
         <div className="ee-name">Padel Park Gran Jardín</div>
-        <div className="ee-version">v3.1 · Panel de Recepción</div>
+        <div className="ee-version">v3.2 · Panel de Recepción</div>
         <div className="ee-divider" />
         <div className="ee-made">Desarrollado por</div>
         <div className="ee-creator">ProcesaLab</div>

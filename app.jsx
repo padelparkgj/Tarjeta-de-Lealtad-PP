@@ -5,12 +5,23 @@ const { useState, useEffect, useMemo, useRef, useCallback } = React;
 // Aquí vivía memberIdFrom, que la inventaba en el navegador con 9,000 valores por
 // año y sin nada que impidiera repetir. No se vuelve a poner.
 
+// La regla de visitas (4.ª Silver, 7.ª gratis, ciclo de 7) vive en regla-visitas.js,
+// la misma que usa el panel de recepción. Aquí no se calcula ningún premio.
+const { reglaVisitas, premioDeVisita, CICLO } = window.PPRegla;
+const PUNTOS_CICLO = Array.from({ length: CICLO }, (_, i) => i + 1);
+const nesima = n => `${n}.ª`;
+
+// El nivel del socio por visitas acumuladas. Nombres en español desde el 26 de septiembre
+// de 2026, para que «Silver» nombre solo la tarifa; los umbrales son los de siempre.
+// ⚠️ `key` no cambió: la usa el CSS (`data-tier`). Y no es members.level, que es el
+// nivel de juego (Principiante, Intermedio…).
 function tierFor(visits) {
-  if (visits >= 50) return { key: 'legend', label: 'Legend' };
-  if (visits >= 25) return { key: 'gold',   label: 'Gold'  };
-  if (visits >= 10) return { key: 'silver', label: 'Silver'};
-  return { key: 'bronze', label: 'Bronze' };
+  if (visits >= 50) return { key: 'legend', label: 'Leyenda' };
+  if (visits >= 25) return { key: 'gold',   label: 'Oro'     };
+  if (visits >= 10) return { key: 'silver', label: 'Plata'   };
+  return { key: 'bronze', label: 'Bronce' };
 }
+const TIER_INICIAL = tierFor(0);
 
 function fmtDate(ts) {
   const d = new Date(ts);
@@ -184,7 +195,7 @@ function EasterEgg({ onClose }) {
           <img src="assets/logo-navy.jpg" alt="PP" />
         </div>
         <div className="ee-name">Padel Park Gran Jardín</div>
-        <div className="ee-version">v3.1 · Tarjeta de Lealtad</div>
+        <div className="ee-version">v3.2 · Tarjeta de Lealtad</div>
         <div className="ee-divider" />
         <div className="ee-made">Desarrollado por</div>
         <div className="ee-creator">ProcesaLab</div>
@@ -431,8 +442,8 @@ function Welcome({ onStart, onLogin }) {
         </div>
         <div className="perk">
           <div className="icon"><Ic.trophy /></div>
-          <div className="label">Visita gratis</div>
-          <div className="sub">Cada 6 visitas, la siguiente es completamente gratis.</div>
+          <div className="label">Silver y gratis</div>
+          <div className="sub">En cada ciclo de 7 visitas, la 4.ª sale a precio Silver y la 7.ª es gratis.</div>
         </div>
       </div>
 
@@ -748,7 +759,7 @@ function Generating({ onDone, formData }) {
 // ──────────────────────────────────────────────────────────────
 // Loyalty Card visual
 // ──────────────────────────────────────────────────────────────
-function LoyaltyCard({ member, style = 'classic', onClick, tier = { key: 'bronze', label: 'Bronze' } }) {
+function LoyaltyCard({ member, style = 'classic', onClick, tier = TIER_INICIAL }) {
   return (
     <div className={`loyalty-card style-${style}`} data-tier={tier.key} onClick={onClick}>
       <div className="lc-bg" />
@@ -818,7 +829,7 @@ function QrModal({ member, onClose }) {
 // ──────────────────────────────────────────────────────────────
 // Wallet Card — Apple Wallet-style downloadable image
 // ──────────────────────────────────────────────────────────────
-function WalletCard({ member, qrSvg, innerRef, tier = { label: 'Bronze' } }) {
+function WalletCard({ member, qrSvg, innerRef, tier = TIER_INICIAL }) {
   const cfg = (typeof window !== 'undefined' && window.PPGJ_CONFIG) || {};
   const since = new Date(member.joinedAt).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
   return (
@@ -904,10 +915,11 @@ function CardScreen({ member, cardStyle, onOpenQr }) {
 
   const totalVisits = visits.length;
   const nextVisit   = totalVisits + 1;
-  const nextPromo   = nextVisit % 6 === 0 ? 'free' : nextVisit % 3 === 0 ? 'silver' : null;
+  const sigue       = reglaVisitas(totalVisits);   // lo que toca en la siguiente
+  const nextPromo   = sigue.premio;
   const birthday    = isBirthdayMonth(member.birth);
-  const cycleFilled = totalVisits % 6;
-  const tier        = visitsReady ? tierFor(totalVisits) : { key: 'bronze', label: 'Bronze' };
+  const cycleFilled = sigue.enCiclo;
+  const tier        = visitsReady ? tierFor(totalVisits) : TIER_INICIAL;
 
   async function downloadWallet() {
     if (!walletRef.current || !window.htmlToImage) return;
@@ -965,18 +977,21 @@ function CardScreen({ member, cardStyle, onOpenQr }) {
 
         {/* ── Visits & promotions ── */}
         {visitsReady && (
-          <div className="visits-block">
+          <div className="visits-block" data-visitas={totalVisits} data-siguiente={nextPromo || 'normal'}>
             <div className="vb-top">
               <div className="vb-count">
                 <span className="vb-n">{totalVisits}</span>
                 <span className="vb-label">visitas</span>
               </div>
               <div className="vb-cycle">
-                {[1,2,3,4,5,6].map(i => (
-                  <div key={i}
-                    className={`vdot ${i<=cycleFilled?'filled':''} ${i===3?'mark-s':''} ${i===6?'mark-f':''}`}
-                  />
-                ))}
+                {PUNTOS_CICLO.map(i => {
+                  const p = reglaVisitas(i - 1).premio;
+                  return (
+                    <div key={i}
+                      className={`vdot ${i<=cycleFilled?'filled':''} ${p==='silver'?'mark-s':''} ${p==='free'?'mark-f':''}`}
+                    />
+                  );
+                })}
               </div>
             </div>
 
@@ -994,8 +1009,8 @@ function CardScreen({ member, cardStyle, onOpenQr }) {
             )}
             {!nextPromo && totalVisits > 0 && (
               <div className="vb-next">
-                {3 - (totalVisits % 3)} visita{3-(totalVisits%3)!==1?'s':''} para precio Silver ·{' '}
-                {6 - (totalVisits % 6)} para cancha gratis
+                Tu {nesima(totalVisits + sigue.hastaSilver)} visita: precio Silver ·{' '}
+                tu {nesima(totalVisits + sigue.hastaGratis)}: cancha gratis
               </div>
             )}
             {totalVisits === 0 && (
@@ -1029,15 +1044,15 @@ function RewardsScreen() {
   const rewards = [
     {
       ic: 'bolt',
-      t: 'Precio Silver cada 3 visitas',
-      s: 'En tu 3ª visita acumulada disfrutas tarifa preferencial Silver.',
-      tag: 'VISITA 3',
+      t: 'Precio Silver en la 4.ª visita',
+      s: 'En cada ciclo de 7 visitas, la 4.ª sale a tarifa preferencial Silver: la 4.ª, la 11.ª, la 18.ª…',
+      tag: 'VISITA 4',
     },
     {
       ic: 'gift',
-      t: 'Visita gratis cada 6 visitas',
-      s: 'En tu 6ª visita acumulada la cancha es completamente gratis.',
-      tag: 'VISITA 6',
+      t: 'Cancha gratis en la 7.ª visita',
+      s: 'En cada ciclo de 7 visitas, la 7.ª es completamente gratis: la 7.ª, la 14.ª, la 21.ª…',
+      tag: 'VISITA 7',
     },
     {
       ic: 'trophy',
@@ -1073,8 +1088,8 @@ function RewardsScreen() {
 
         <div className="rewards-note">
           <div className="rn-title">¿Cómo funciona el conteo?</div>
-          <p>Cada visita que realizas acumula un sello. Al llegar a <strong>3 sellos</strong> la siguiente visita tiene <strong>precio Silver</strong>; al llegar a <strong>6 sellos</strong> la siguiente visita es <strong>completamente gratis</strong>.</p>
-          <p>La visita con precio Silver (la 4ª) y la visita gratis (la 7ª) <strong>no suman sello</strong> al ciclo. El conteo continúa desde donde terminó el ciclo anterior.</p>
+          <p>Tus visitas cuentan en <strong>ciclos de 7</strong>. La <strong>4.ª visita</strong> del ciclo sale a <strong>precio Silver</strong> y la <strong>7.ª</strong> es <strong>completamente gratis</strong>.</p>
+          <p>Todas las visitas cuentan, también la Silver y la gratis. Al completar la 7.ª, el ciclo vuelve a empezar desde cero: tus visitas Silver son la 4.ª, 11.ª, 18.ª… y las gratis, la 7.ª, 14.ª, 21.ª…</p>
         </div>
       </div>
     </div>
@@ -1136,9 +1151,9 @@ function ProfileScreen({ member, onReset }) {
           )}
           {visits.map((v, i) => {
             const visitNum = totalVisits - i;
-            const promo = visitNum % 6 === 0 ? 'free' : visitNum % 3 === 0 ? 'silver' : null;
+            const promo = premioDeVisita(visitNum);
             return (
-              <div key={v.id} className="ph-row">
+              <div key={v.id} className="ph-row" data-visita={visitNum} data-premio={promo || 'normal'}>
                 <div className="ph-num">{visitNum}</div>
                 <div className="ph-info">
                   <div className="ph-date">{fmtDate(v.visited_at)}</div>

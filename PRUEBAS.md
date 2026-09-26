@@ -29,6 +29,7 @@ septiembre de 2026, con la v3.0; los resultados de esa vez van al final.
 | 10 | Registro y login seguidos | Tras el caso 9, Perfil → Cerrar sesión, e Iniciar sesión | Ninguna pantalla habla de correos; entra a la misma tarjeta |
 | 11 | Mostrador | Ficha sin teléfono (o dos fichas con el mismo correo) y registrarse con ese correo | «Pasa al mostrador», sin culpar, con «Ya me atendieron, intentar de nuevo» y «Cerrar sesión»; la ficha sigue sin cuenta |
 | 12 | Login | Contraseña mala; y sin red (modo avión) | «Correo o contraseña incorrectos.» · «No hay conexión con el club…» |
+| 13 | La regla de visitas | Un socio de prueba con cuenta; registrar sus visitas una a una desde el panel. Antes de cada una, leer lo que anuncia la tarjeta del socio y lo que anuncia el panel; después, lo que dice «visita registrada». Al final, el historial de las dos apps y el contador de la ficha | Coinciden con la lista de Edgar, escrita tal cual en la prueba (no con la función): 4.ª y 11.ª Silver, 7.ª y 14.ª gratis, el resto sin premio. Los sellos vuelven a cero tras la 7.ª |
 | — | Si se vuelve a encender la confirmación por correo | Registrarse | «Revisa tu correo»; la tarjeta se crea en el primer inicio de sesión con los datos del registro. Hoy no se puede probar: la confirmación está apagada |
 
 ⚠️ **Nunca se prueba con el correo de un socio real**, ni se registra una visita a la
@@ -68,3 +69,13 @@ Mismo método: Playwright con Chrome para lo que lleva contraseña, en local con
 - 11 ✅ (sin teléfono): «Pasa al mostrador» y `PP-26-10004` sigue sin cuenta. El de dos fichas
   con el mismo correo no se probó.
 - 12 ✅: las dos frases.
+
+## Resultados del 26 de septiembre de 2026 (v3.2, la regla de visitas)
+
+Socio de prueba `PP-26-10006`, 15 visitas registradas desde el panel, en local contra la base real.
+
+- 15 de 15 visitas cuadran en tarjeta, panel y pantalla guardada: Silver en la 4.ª y la 11.ª,
+  gratis en la 7.ª y la 14.ª, las otras once sin premio. Sellos antes de cada visita:
+  0-1-2-3-4-5-6, y vuelven a 0 en la 8.ª y la 15.ª.
+- Historial: 15 filas en cada app, 0 discrepancias.
+- Contador de la ficha con 15 visitas: 2 gratis y 2 Silver (con la división de antes, 2 y 5).
