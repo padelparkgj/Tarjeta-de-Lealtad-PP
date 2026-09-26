@@ -23,10 +23,13 @@ septiembre de 2026, con la v3.0; los resultados de esa vez van al final.
 | 4 | Registrar una visita | Escanear → escribir la credencial en «¿No lee el QR?» → Buscar → Confirmar visita | Pantalla de visita guardada; en la base, una fila nueva en `visits` con `creado_por` = la cuenta que entró |
 | 5 | La visita en la ficha | Socios → abrir la ficha | «1 Visitas» y la visita en el historial |
 | 6 | Aviso vigente sin sesión | Avisos → publicar uno con vigencia a futuro; abrir `Landing Page.html` en una ventana sin sesión | El aviso se ve en la bienvenida. Después se borra |
-| 7 | Enlace a una ficha que ya existía | Crear una ficha sin cuenta con el correo de una cuenta de prueba (no el de un socio real) y registrarle una visita; entrar en `Landing Page.html` con esa cuenta | La tarjeta sale con la **misma credencial** y la visita; en la base, `user_id` es la cuenta. Ninguna ficha nueva |
-| 8 | Ficha nueva | Entrar en la página de socios con una cuenta sin ficha | Si la cuenta no trae datos de registro, sale «Completa tu ficha»; al enviarla, la tarjeta sale con una credencial **generada por la base** (`PP-AA-NNNNN`) |
-| 9 | Registro con correo desechable | «Crear mi tarjeta» con un correo de mailinator | Sale «Revisa tu correo». Llega «Confirm Your Signup». Al confirmar y entrar, la ficha se crea con nombre, teléfono y cumpleaños del registro |
-| 10 | El fallo se dice | Registrarse con un correo inválido, o con el límite de correos agotado | El motivo, en español, sobre el formulario; nunca la bienvenida muda |
+| 7 | Enlace: ficha existente + teléfono correcto | Crear con la sesión de personal una ficha sin cuenta (correo desechable, teléfono de 10 dígitos) y registrarle una visita; registrarse en la app con ese correo y ese teléfono **en otro formato** (`+52 477 …`) | Entra directo a la tarjeta con la **misma credencial** y la visita; en la base, la ficha tiene `user_id`. Ninguna ficha nueva |
+| 8 | Enlace: teléfono equivocado | Igual, con otro teléfono | «Revisa tu teléfono», con el campo marcado; **leyendo la base, la ficha sigue sin cuenta**. Corregir el teléfono ahí mismo y «Enlazar mi tarjeta» enlaza, sin registrarse otra vez |
+| 9 | Correo nuevo | Registrarse con un correo que no tiene ficha | Entra directo a la tarjeta, con una credencial **generada por la base** (`PP-AA-NNNNN`) |
+| 10 | Registro y login seguidos | Tras el caso 9, Perfil → Cerrar sesión, e Iniciar sesión | Ninguna pantalla habla de correos; entra a la misma tarjeta |
+| 11 | Mostrador | Ficha sin teléfono (o dos fichas con el mismo correo) y registrarse con ese correo | «Pasa al mostrador», sin culpar, con «Ya me atendieron, intentar de nuevo» y «Cerrar sesión»; la ficha sigue sin cuenta |
+| 12 | Login | Contraseña mala; y sin red (modo avión) | «Correo o contraseña incorrectos.» · «No hay conexión con el club…» |
+| — | Si se vuelve a encender la confirmación por correo | Registrarse | «Revisa tu correo»; la tarjeta se crea en el primer inicio de sesión con los datos del registro. Hoy no se puede probar: la confirmación está apagada |
 
 ⚠️ **Nunca se prueba con el correo de un socio real**, ni se registra una visita a la
 credencial de un socio real: una visita cuenta para su cancha gratis.
@@ -51,3 +54,17 @@ leía las cuentas de `.env.controles`; los demás, Chrome a mano.
   la ficha es la misma llamada del caso 8.
 - 10 ✅: «ese correo no es válido» (`@example.com`) y «el club alcanzó el límite de
   correos de confirmación por hora».
+
+## Resultados del 26 de septiembre de 2026 (v3.1, confirmación por correo apagada)
+
+Mismo método: Playwright con Chrome para lo que lleva contraseña, en local contra la base real.
+
+- 7 ✅: `PP-26-10002` (teléfono `4770001111`, registrado como `+52 477 000 1111`) enlazó con su
+  visita; una sola ficha con ese correo.
+- 8 ✅: con `4779999999`, «Revisa tu teléfono» y `PP-26-10003` **sigue sin cuenta** leyendo la
+  base; corregido a `477-000-2222` en la misma pantalla, enlazó.
+- 9 ✅: `PP-26-10005`, generada por la base, con su teléfono.
+- 10 ✅: salir y entrar lleva a la misma tarjeta; ninguna pantalla del camino habla de correos.
+- 11 ✅ (sin teléfono): «Pasa al mostrador» y `PP-26-10004` sigue sin cuenta. El de dos fichas
+  con el mismo correo no se probó.
+- 12 ✅: las dos frases.

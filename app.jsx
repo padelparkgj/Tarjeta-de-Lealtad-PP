@@ -184,7 +184,7 @@ function EasterEgg({ onClose }) {
           <img src="assets/logo-navy.jpg" alt="PP" />
         </div>
         <div className="ee-name">Padel Park Gran Jardín</div>
-        <div className="ee-version">v3.0 · Tarjeta de Lealtad</div>
+        <div className="ee-version">v3.1 · Tarjeta de Lealtad</div>
         <div className="ee-divider" />
         <div className="ee-made">Desarrollado por</div>
         <div className="ee-creator">ProcesaLab</div>
@@ -259,13 +259,18 @@ function LoginForm({ onBack, onSuccess }) {
 
     const { data, error: err } = await window.PPSb.signIn(email.trim().toLowerCase(), password);
     if (err) {
-      // Tres causas, tres frases: el correo sin confirmar no es una contraseña mala,
-      // y la red caída tampoco.
-      setError(err.code === 'email_not_confirmed'
-        ? 'Todavía no confirmas tu correo. Abre el enlace que te enviamos y vuelve a entrar.'
-        : (err.status === 400 || err.code === 'invalid_credentials')
-          ? 'Correo o contraseña incorrectos.'
-          : 'No se pudo iniciar sesión: ' + err.message);
+      // Tres causas, tres frases: la red caída no es una contraseña mala.
+      // ⚠️ «Correo sin confirmar» sigue aquí porque sigue siendo alcanzable: una cuenta
+      // creada mientras el proyecto exigía confirmación y que nunca se confirmó sigue sin
+      // poder entrar, y si el proyecto vuelve a exigirla, es el caso de todo registro nuevo.
+      const sinRed = err.status === 0 || err.name === 'AuthRetryableFetchError';
+      setError(sinRed
+        ? 'No hay conexión con el club. Revisa tu internet y vuelve a intentar.'
+        : err.code === 'email_not_confirmed'
+          ? 'Todavía no confirmas tu correo. Abre el enlace que te enviamos y vuelve a entrar.'
+          : (err.code === 'invalid_credentials' || err.status === 400)
+            ? 'Correo o contraseña incorrectos.'
+            : 'No se pudo iniciar sesión: ' + err.message);
       setBusy(false);
       return;
     }
@@ -505,6 +510,12 @@ function RegisterForm({ onBack, onSubmit, authError, busy, inicial }) {
         <div className="step">Paso 1 de 2</div>
         <h2>Cuéntanos<br/>quién eres.</h2>
         <p className="sub">Con estos datos generamos tu tarjeta única — diseño, número y QR personal.</p>
+        {/* El teléfono es la llave para recuperar una ficha: vincular_socio solo enlaza
+            una ficha que ya existe si el correo Y el teléfono coinciden. */}
+        <p className="sub" style={{marginTop:-6}}>
+          <strong>¿Ya eras socio?</strong> Regístrate con el <strong>mismo correo</strong> y el{' '}
+          <strong>teléfono</strong> que tienes registrado en el club: conservas tu número de socio y tus visitas.
+        </p>
 
         <form onSubmit={submit}>
           <div className="field">
@@ -523,7 +534,8 @@ function RegisterForm({ onBack, onSubmit, authError, busy, inicial }) {
           <div className="field-row">
             <div className="field">
               <label>Teléfono</label>
-              <input value={data.phone} onChange={e=>set('phone', e.target.value)} placeholder="+52 81 ..." style={errors.phone ? {borderColor:'#d44'} : null} />
+              <input type="tel" value={data.phone} onChange={e=>set('phone', e.target.value)} placeholder="477 123 4567" autoComplete="tel" style={errors.phone ? {borderColor:'#d44'} : null} />
+              {errors.phone && <span className="field-error-inline">Escribe tu teléfono de 10 dígitos</span>}
             </div>
             <div className="field">
               <label>Cumpleaños</label>
@@ -588,31 +600,59 @@ function ConfirmarCorreo({ email, onLogin }) {
 // ──────────────────────────────────────────────────────────────
 // Tu ficha — cuando la sesión existe y la tarjeta todavía no
 // ──────────────────────────────────────────────────────────────
-// Sale en dos casos: la cuenta no trae los datos del registro, o crear/enlazar la
-// ficha falló. En el segundo, el motivo va arriba y los datos se conservan para
-// reintentar: nadie se queda en la bienvenida sin saber qué pasó.
-function FichaForm({ inicial, error, busy, onSubmit, onLogout }) {
+// Sale cuando la cuenta existe y la tarjeta no: la cuenta no trae los datos del
+// registro, o vincular_socio dijo que no. Cada negativa dice qué hacer después, y en
+// ninguna se manda a la persona a registrarse otra vez: su cuenta ya está creada.
+//
+// `fallo` es null (completar) o { tipo, texto }:
+//   'telefono'  — hay ficha con su correo y el teléfono no coincide: lo corrige aquí.
+//   'mostrador' — la ficha no tiene teléfono, o hay varias con su correo: recepción.
+//   'otro'      — cualquier otra cosa: el motivo y reintentar.
+function FichaForm({ inicial, fallo, onSubmit, onLogout }) {
   const [d, setD] = useState(() => ({ name: '', phone: '', birth: '', ...(inicial || {}) }));
   const [errs, setErrs] = useState({});
   const set = (k, v) => { setD(x => ({ ...x, [k]: v })); setErrs(e => ({ ...e, [k]: null })); };
+  const tipo = fallo?.tipo;
 
   function submit(e) {
-    e.preventDefault();
+    e && e.preventDefault();
     const err = {};
     if (!d.name.trim() || d.name.trim().length < 2) err.name = true;
     if (d.phone && !/^\+?\d[\d\s\-]{7,}$/.test(d.phone)) err.phone = true;
+    if (tipo === 'telefono' && !d.phone) err.phone = true;
     setErrs(err);
     if (Object.keys(err).length === 0) onSubmit({ ...(inicial || {}), ...d, name: d.name.trim() });
+  }
+
+  if (tipo === 'mostrador') {
+    return (
+      <div className="scroll fade-in">
+        <TopBar right="TU FICHA" />
+        <div className="form-wrap" data-fallo="mostrador">
+          <h2>Pasa al<br/>mostrador.</h2>
+          <p className="sub">{fallo.texto}</p>
+          <p className="sub">Tu cuenta ya quedó creada: no tienes que registrarte otra vez. Cuando en recepción la enlacen, entra con tu correo y tu contraseña.</p>
+          <button type="button" className="btn btn-primary" style={{width:'100%'}} onClick={() => submit()}>
+            Ya me atendieron, intentar de nuevo
+          </button>
+          <button type="button" className="btn btn-ghost" style={{width:'100%', marginTop:10}} onClick={onLogout}>
+            Cerrar sesión
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="scroll fade-in">
       <TopBar right="TU FICHA" />
-      <div className="form-wrap">
-        <h2>{error ? <>No se creó<br/>tu tarjeta.</> : <>Completa<br/>tu ficha.</>}</h2>
-        {error
-          ? <p className="field-error">{error}</p>
-          : <p className="sub">Tu cuenta ya existe. Con estos datos creamos tu tarjeta, o la enlazamos si el club ya te tenía registrado con este correo.</p>}
+      <div className="form-wrap" data-fallo={tipo || 'ninguno'}>
+        <h2>{tipo === 'telefono' ? <>Revisa tu<br/>teléfono.</>
+          : tipo ? <>No se creó<br/>tu tarjeta.</>
+          : <>Completa<br/>tu ficha.</>}</h2>
+        {tipo
+          ? <p className="field-error">{fallo.texto}</p>
+          : <p className="sub">Tu cuenta ya existe. Con estos datos creamos tu tarjeta, o la enlazamos si el club ya te tenía registrado con este correo y este teléfono.</p>}
 
         <form onSubmit={submit}>
           <div className="field">
@@ -622,15 +662,17 @@ function FichaForm({ inicial, error, busy, onSubmit, onLogout }) {
           <div className="field-row">
             <div className="field">
               <label>Teléfono</label>
-              <input value={d.phone} onChange={e=>set('phone', e.target.value)} placeholder="+52 81 ..." style={errs.phone ? {borderColor:'#d44'} : null} />
+              <input type="tel" value={d.phone} onChange={e=>set('phone', e.target.value)} placeholder="477 123 4567" autoComplete="tel"
+                autoFocus={tipo === 'telefono'}
+                style={(errs.phone || tipo === 'telefono') ? {borderColor:'#d44'} : null} />
             </div>
             <div className="field">
               <label>Cumpleaños</label>
               <input type="date" value={d.birth || ''} onChange={e=>set('birth', e.target.value)} />
             </div>
           </div>
-          <button type="submit" className="btn btn-primary" style={{width:'100%'}} disabled={busy}>
-            {busy ? 'Creando tu tarjeta…' : error ? 'Reintentar' : 'Crear mi tarjeta'}
+          <button type="submit" className="btn btn-primary" style={{width:'100%'}}>
+            {tipo === 'telefono' ? 'Enlazar mi tarjeta' : tipo ? 'Reintentar' : 'Crear mi tarjeta'}
           </button>
           <button type="button" className="btn btn-ghost" style={{width:'100%', marginTop:10}} onClick={onLogout}>
             Cerrar sesión
@@ -639,6 +681,30 @@ function FichaForm({ inicial, error, busy, onSubmit, onLogout }) {
       </div>
     </div>
   );
+}
+
+// Las tres negativas de vincular_socio llegan como P0001 con texto propio; aquí se
+// traducen a qué hacer. Se reconocen por el texto porque es lo único que las separa.
+function falloDeVinculo(error) {
+  const m = (error && error.message) || '';
+  if (/no coincide/i.test(m)) {
+    return { tipo: 'telefono', texto:
+      'El club ya tiene una ficha con tu correo, pero el teléfono no coincide con el que está registrado. ' +
+      'Corrígelo abajo y vuelve a intentar. Si cambiaste de número, pasa al mostrador para actualizarlo.' };
+  }
+  if (/no tiene tel/i.test(m)) {
+    return { tipo: 'mostrador', texto:
+      'El club ya tiene una ficha con tu correo, pero sin teléfono registrado, así que desde aquí no se puede confirmar que es tuya. ' +
+      'En recepción la enlazan en un momento.' };
+  }
+  if (/fichas sin cuenta/i.test(m)) {
+    return { tipo: 'mostrador', texto:
+      'El club tiene más de una ficha con tu correo, y en recepción te ayudan a quedarte con la tuya.' };
+  }
+  const sinRed = error && (error.status === 0 || /failed to fetch|network/i.test(m));
+  return { tipo: 'otro', texto: sinRed
+    ? 'No hay conexión con el club. Revisa tu internet y vuelve a intentar.'
+    : 'No se pudo crear tu tarjeta: ' + (m || 'error desconocido') + '.' };
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -1477,7 +1543,7 @@ function App() {
   const [authError, setAuthError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [emailEnviado, setEmailEnviado] = useState('');
-  const [fichaError, setFichaError] = useState(null);
+  const [fichaFallo, setFichaFallo] = useState(null);   // null | { tipo, texto } — ver FichaForm
   const [sesionUser, setSesionUser] = useState(null);
   const [avisoMain, setAvisoMain] = useState(null);   // algo que salió a medias, sin bloquear
   const vinculoRef = useRef(null);
@@ -1492,7 +1558,7 @@ function App() {
     setSesionUser(user);
     const { data, error } = await window.PPSb.getMember(user.id);
     if (error) {
-      setFichaError('No se pudo leer tu ficha: ' + error.message);
+      setFichaFallo({ tipo: 'otro', texto: 'No se pudo leer tu ficha: ' + error.message + '.' });
       setPendingForm(fichaDeMetadatos(user));
       setScreen('ficha');
       return;
@@ -1504,7 +1570,7 @@ function App() {
     }
     const ficha = fichaDeMetadatos(user);
     if (ficha.name) { arrancarVinculo(user, ficha); return; }
-    setFichaError(null);
+    setFichaFallo(null);
     setPendingForm(ficha);
     setScreen('ficha');
   }
@@ -1524,12 +1590,12 @@ function App() {
 
   async function vincular(user, ficha) {
     const { data: memberId, error } = await window.PPSb.vincularSocio(ficha.name, ficha.phone, ficha.birth);
-    if (error) return { error: 'No se pudo crear tu tarjeta: ' + error.message };
+    if (error) return { fallo: falloDeVinculo(error) };
 
     const { data: row, error: lecturaErr } = await window.PPSb.getMember(user.id);
     if (lecturaErr || !row) {
-      return { error: `Tu tarjeta se creó${memberId ? ' (' + memberId + ')' : ''}, pero no se pudo leer: ` +
-        (lecturaErr ? lecturaErr.message : 'la ficha no aparece con esta cuenta') + '. Vuelve a intentarlo.' };
+      return { fallo: { tipo: 'otro', texto: `Tu tarjeta se creó${memberId ? ' (' + memberId + ')' : ''}, pero no se pudo leer: ` +
+        (lecturaErr ? lecturaErr.message : 'la ficha no aparece con esta cuenta') + '. Vuelve a intentarlo.' } };
     }
 
     // El nivel no es parte de vincular_socio: se escribe aparte, y si falla la tarjeta
@@ -1541,15 +1607,14 @@ function App() {
       else row.level = ficha.level;
     }
 
-    if (window.PPGJ) window.PPGJ.register({ ...row, id: row.member_id, joinedAt: row.joined_at });
     return { member: row, aviso };
   }
 
   async function handleGenDone() {
     const r = await vinculoRef.current;
     vinculoRef.current = null;
-    if (r.error) {
-      setFichaError(r.error);
+    if (r.fallo) {
+      setFichaFallo(r.fallo);
       setScreen('ficha');
       return;
     }
@@ -1603,15 +1668,23 @@ function App() {
         ? 'No se creó tu cuenta: el club alcanzó el límite de correos de confirmación por hora. Intenta de nuevo más tarde.'
         : authErr.code === 'email_address_invalid' || /is invalid/i.test(authErr.message)
           ? 'No se creó tu cuenta: ese correo no es válido.'
-          : 'No se creó tu cuenta: ' + authErr.message);
+          : authErr.code === 'user_already_exists' || /already registered/i.test(authErr.message)
+            ? 'Ese correo ya tiene cuenta en la app. Inicia sesión con tu contraseña.'
+            : authErr.status === 0 || authErr.name === 'AuthRetryableFetchError'
+              ? 'No se creó tu cuenta: no hay conexión con el club. Revisa tu internet y vuelve a intentar.'
+              : 'No se creó tu cuenta: ' + authErr.message);
       return;
     }
-    // Con confirmación de correo no hay sesión todavía: la tarjeta se crea al entrar.
+    // Lo decide la respuesta, no una constante: hoy el proyecto no pide confirmar el
+    // correo y signUp ya trae sesión, así que la tarjeta se crea aquí mismo. Si algún día
+    // se vuelve a exigir confirmación, no habrá sesión y la tarjeta se crea en el primer
+    // inicio de sesión (entrar → vincular con los datos guardados en la cuenta).
     if (!authData.session) {
       setEmailEnviado(email);
       setScreen('confirmar');
       return;
     }
+    setSesionUser(authData.user);   // la corrección del teléfono reintenta con esta cuenta
     arrancarVinculo(authData.user, { ...data, name: data.name.trim(), email });
   }
 
@@ -1636,7 +1709,7 @@ function App() {
         {screen === 'login'      && <LoginForm onBack={()=>setScreen('welcome')} onSuccess={handleLoginSuccess} />}
         {screen === 'form'       && <RegisterForm onBack={()=>setScreen('welcome')} onSubmit={handleSubmitForm} authError={authError} busy={busy} inicial={pendingForm} />}
         {screen === 'confirmar'  && <ConfirmarCorreo email={emailEnviado} onLogin={handleLogin} />}
-        {screen === 'ficha'      && <FichaForm inicial={pendingForm} error={fichaError} onSubmit={handleFichaSubmit} onLogout={handleReset} />}
+        {screen === 'ficha'      && <FichaForm inicial={pendingForm} fallo={fichaFallo} onSubmit={handleFichaSubmit} onLogout={handleReset} />}
         {screen === 'generating' && <Generating formData={pendingForm} onDone={handleGenDone} />}
 
         {screen === 'main' && member && (

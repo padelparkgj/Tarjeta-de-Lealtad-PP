@@ -1,5 +1,10 @@
 # Padel Park Gran Jardín · Tarjeta de Lealtad
 
+> ⚠️ **Este README describe la versión de Google Sheets y ya no es verdad.** Desde la v3.0 la
+> app corre contra la base de Supabase del POS, y desde la v3.1 **no manda nada a Google
+> Sheets**: `api.js` y `apps-script.gs` se borraron a propósito. Lo vigente está en
+> `CLAUDE.md` y en `PRUEBAS.md`. No sigas los pasos de abajo.
+
 Landing page para socios + panel de recepción (admin) con scanner de QR.
 Todo el stack es **estático en GitHub Pages + Google Sheets** vía Apps Script. No requiere servidor.
 

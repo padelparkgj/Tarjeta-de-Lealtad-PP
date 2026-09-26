@@ -1,21 +1,11 @@
 // ─────────────────────────────────────────────────────────────
 // CONFIGURACIÓN — Padel Park Gran Jardín
 // ─────────────────────────────────────────────────────────────
-// 1. Crea tu Google Sheet siguiendo el README.
-// 2. Pega aquí la URL del Web App de Google Apps Script (termina en /exec).
-// 3. Guarda y haz commit. Listo.
+// Aquí solo va lo público: el nombre del club y cómo llegar a la base. Nada de
+// contraseñas ni tokens — este archivo lo descarga cualquiera que abra la página.
 // ─────────────────────────────────────────────────────────────
 
 window.PPGJ_CONFIG = {
-  // URL del webhook (Google Apps Script Web App). Déjala vacía para correr en modo demo (no escribe al Sheet).
-  webhookUrl: "https://script.google.com/macros/s/AKfycbwhc3OOGuHj0QPzvjUqwINDEWzQLwfpD54pm-vtVDGj_L4OTHgpW6_g6JwJJ1w2zTi5yg/exec",
-
-  // Token del Google Sheet: lo lee SOLO api.js, que lo manda al Apps Script.
-  // ⚠️ Es público —viaja en este archivo— y no protege nada del panel: el panel entra
-  // con una cuenta de personal de Supabase. Si el envío al Sheet sigue o se apaga lo
-  // decide Edgar; mientras, debe ser IGUAL a ADMIN_TOKEN en apps-script.gs.
-  sheetToken: "padelpark-2026",
-
   // Configuración del club
   club: {
     name: "Padel Park",
