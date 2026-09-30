@@ -7,7 +7,7 @@ const { useState, useEffect, useMemo, useRef, useCallback } = React;
 
 // La regla de visitas (4.ª Silver, 7.ª gratis, ciclo de 7) vive en regla-visitas.js,
 // la misma que usa el panel de recepción. Aquí no se calcula ningún premio.
-const { reglaVisitas, premioDeVisita, CICLO } = window.PPRegla;
+const { reglaVisitas, premioDeVisita, lineaConteo, CICLO } = window.PPRegla;
 const PUNTOS_CICLO = Array.from({ length: CICLO }, (_, i) => i + 1);
 const nesima = n => `${n}.ª`;
 
@@ -32,6 +32,13 @@ function fmtTime(ts) {
   const d = new Date(ts);
   return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
 }
+
+// Lo que lleva el QR del socio: PPGJ|<credencial>, y nada más (30 de septiembre de 2026).
+// Hasta la v3.2 llevaba también el nombre, que ningún lector usa —el del POS y el del panel
+// leen el de la ficha— y solo alargaba el código: con nombre largo el QR pasaba de 25×25
+// módulos a 29, 33 o 37, un dibujo más apretado y más difícil de leer. Los dos lectores
+// siguen aceptando el formato viejo, que está en tarjetas descargadas y capturas.
+const codigoQr = member => `PPGJ|${member.id}`;
 
 // ──────────────────────────────────────────────────────────────
 // QR code generation — returns SVG string
@@ -195,7 +202,7 @@ function EasterEgg({ onClose }) {
           <img src="assets/logo-navy.jpg" alt="PP" />
         </div>
         <div className="ee-name">Padel Park Gran Jardín</div>
-        <div className="ee-version">v3.2 · Tarjeta de Lealtad</div>
+        <div className="ee-version">v3.3 · Tarjeta de Lealtad</div>
         <div className="ee-divider" />
         <div className="ee-made">Desarrollado por</div>
         <div className="ee-creator">ProcesaLab</div>
@@ -796,8 +803,8 @@ function LoyaltyCard({ member, style = 'classic', onClick, tier = TIER_INICIAL }
 // ──────────────────────────────────────────────────────────────
 function QrModal({ member, onClose }) {
   const qrSvg = useMemo(() =>
-    generateQrSvg(`PPGJ|${member.id}|${member.name}`, { dark: '#0e1d57', light: '#ffffff', size: 280 }),
-  [member.id, member.name]);
+    generateQrSvg(codigoQr(member), { dark: '#0e1d57', light: '#ffffff', size: 280 }),
+  [member.id]);
 
   const tapRef = useRef(null);
   function handleTap() {
@@ -893,33 +900,41 @@ function isBirthdayMonth(birth) {
 
 function CardScreen({ member, cardStyle, onOpenQr }) {
   const qrSvgWallet = useMemo(() =>
-    generateQrSvg(`PPGJ|${member.id}|${member.name}`, { dark: '#0e1d57', light: '#ffffff', size: 360 }),
-  [member.id, member.name]);
+    generateQrSvg(codigoQr(member), { dark: '#0e1d57', light: '#ffffff', size: 360 }),
+  [member.id]);
 
   const walletRef = useRef(null);
   const [downloading, setDownloading] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
 
-  // ── Visits from Supabase ──
-  const [visits, setVisits] = useState([]);
-  const [visitsReady, setVisitsReady] = useState(false);
+  // ── Las visitas, contadas en la base ──
+  // La promoción cuenta desde que se registró en la app (vinculado_en), como el POS: el total
+  // y lo que cuenta pueden diferir, y entonces se enseñan las dos cifras con su explicación.
+  // Una lectura caída no es «0 visitas»: se dice que no se pudo leer.
+  const [conteo, setConteo] = useState(null);          // { total, cuentan } | null
+  const [conteoFallo, setConteoFallo] = useState(false);
 
   useEffect(() => {
-    const mid = member.member_id || member.id;
-    if (!window.PPSb || !mid) { setVisitsReady(true); return; }
-    window.PPSb.getMemberVisits(mid).then(({ data }) => {
-      setVisits(data || []);
-      setVisitsReady(true);
+    if (!window.PPSb || !member.member_id) { setConteoFallo(true); return; }
+    let vivo = true;
+    window.PPSb.contarVisitas(member).then(({ data, error }) => {
+      if (!vivo) return;
+      if (error) { console.error('[contarVisitas]', error); setConteoFallo(true); return; }
+      setConteo(data);
     });
-  }, [member.member_id, member.id]);
+    return () => { vivo = false; };
+  }, [member.member_id, member.vinculado_en]);
 
-  const totalVisits = visits.length;
-  const nextVisit   = totalVisits + 1;
-  const sigue       = reglaVisitas(totalVisits);   // lo que toca en la siguiente
-  const nextPromo   = sigue.premio;
+  const totalVisits = conteo ? conteo.total : 0;
+  const participa   = conteo !== null && conteo.cuentan !== null;
+  const enPromo     = participa ? conteo.cuentan : 0;  // lo que decide los premios
+  const sigue       = reglaVisitas(enPromo);            // lo que toca en la siguiente
+  const nextPromo   = participa ? sigue.premio : null;
   const birthday    = isBirthdayMonth(member.birth);
-  const cycleFilled = sigue.enCiclo;
-  const tier        = visitsReady ? tierFor(totalVisits) : TIER_INICIAL;
+  const cycleFilled = participa ? sigue.enCiclo : 0;
+  // El nivel (Bronce, Plata…) sigue siendo por visitas acumuladas: es otra cosa que la promoción.
+  const tier        = conteo ? tierFor(totalVisits) : TIER_INICIAL;
+  const explicacion = conteo ? lineaConteo(conteo, member.vinculado_en, 'tu') : null;
 
   async function downloadWallet() {
     if (!walletRef.current || !window.htmlToImage) return;
@@ -976,12 +991,17 @@ function CardScreen({ member, cardStyle, onOpenQr }) {
         </div>
 
         {/* ── Visits & promotions ── */}
-        {visitsReady && (
-          <div className="visits-block" data-visitas={totalVisits} data-siguiente={nextPromo || 'normal'}>
+        {conteoFallo && (
+          <div className="visits-block" data-visitas="no-se">
+            <div className="vb-next">No se pudieron leer tus visitas. Revisa tu conexión y vuelve a abrir la app.</div>
+          </div>
+        )}
+        {conteo && (
+          <div className="visits-block" data-visitas={totalVisits} data-cuentan={participa ? enPromo : 'no-participa'} data-siguiente={nextPromo || 'normal'}>
             <div className="vb-top">
               <div className="vb-count">
-                <span className="vb-n">{totalVisits}</span>
-                <span className="vb-label">visitas</span>
+                <span className="vb-n">{participa ? enPromo : totalVisits}</span>
+                <span className="vb-label">{participa && enPromo !== totalVisits ? 'visitas en la promoción' : 'visitas'}</span>
               </div>
               <div className="vb-cycle">
                 {PUNTOS_CICLO.map(i => {
@@ -1007,12 +1027,13 @@ function CardScreen({ member, cardStyle, onOpenQr }) {
                 <span>Tu siguiente visita tiene tarifa preferencial</span>
               </div>
             )}
-            {!nextPromo && totalVisits > 0 && (
+            {participa && !nextPromo && enPromo > 0 && (
               <div className="vb-next">
-                Tu {nesima(totalVisits + sigue.hastaSilver)} visita: precio Silver ·{' '}
-                tu {nesima(totalVisits + sigue.hastaGratis)}: cancha gratis
+                Tu {nesima(enPromo + sigue.hastaSilver)} visita: precio Silver ·{' '}
+                tu {nesima(enPromo + sigue.hastaGratis)}: cancha gratis
               </div>
             )}
+            {explicacion && <div className="vb-next" data-explicacion>{explicacion}</div>}
             {totalVisits === 0 && (
               <div className="vb-next">Presenta tu QR en recepción para registrar tu primera visita</div>
             )}
@@ -1101,18 +1122,30 @@ function RewardsScreen() {
 // ──────────────────────────────────────────────────────────────
 function ProfileScreen({ member, onReset }) {
   const [visits,  setVisits]  = useState([]);
+  const [conteo,  setConteo]  = useState(null);   // { total, cuentan }
   const [loading, setLoading] = useState(true);
+  const [fallo,   setFallo]   = useState(false);
 
   useEffect(() => {
-    const mid = member.member_id || member.id;
-    if (!window.PPSb || !mid) { setLoading(false); return; }
-    window.PPSb.getMemberVisits(mid).then(({ data }) => {
-      setVisits(data || []);
-      setLoading(false);
-    });
-  }, [member.member_id, member.id]);
+    if (!window.PPSb || !member.member_id) { setFallo(true); setLoading(false); return; }
+    let vivo = true;
+    Promise.all([window.PPSb.getMemberVisits(member.member_id), window.PPSb.contarVisitas(member)])
+      .then(([vRes, cRes]) => {
+        if (!vivo) return;
+        const error = vRes.error || cRes.error;
+        if (error) { console.error('[Mis visitas]', error); setFallo(true); }
+        else { setVisits(vRes.data || []); setConteo(cRes.data); }
+        setLoading(false);
+      });
+    return () => { vivo = false; };
+  }, [member.member_id, member.vinculado_en]);
 
-  const totalVisits = visits.length;
+  const totalVisits = conteo ? conteo.total : visits.length;
+  // La lista viene de la más reciente a la más vieja, y las que cuentan (contadas por la base,
+  // desde vinculado_en) son las primeras `cuentan`: ésas llevan su número de promoción. Las de
+  // antes de registrarse no llevan número ni premio.
+  const cuentan = conteo && conteo.cuentan !== null ? conteo.cuentan : 0;
+  const explicacion = conteo ? lineaConteo(conteo, member.vinculado_en, 'tu') : null;
 
   return (
     <div className="scroll fade-in">
@@ -1144,17 +1177,20 @@ function ProfileScreen({ member, onReset }) {
         </div>
 
         <div className="profile-history">
-          <div className="ph-title">Mis visitas ({loading ? '…' : totalVisits})</div>
+          <div className="ph-title">Mis visitas ({loading ? '…' : fallo ? '—' : totalVisits})</div>
           {loading && <div className="ph-empty">Cargando…</div>}
-          {!loading && visits.length === 0 && (
+          {fallo && <div className="ph-empty">No se pudieron leer tus visitas. Revisa tu conexión y vuelve a intentarlo.</div>}
+          {!loading && !fallo && visits.length === 0 && (
             <div className="ph-empty">Aún no tienes visitas registradas.</div>
           )}
-          {visits.map((v, i) => {
-            const visitNum = totalVisits - i;
-            const promo = premioDeVisita(visitNum);
+          {!loading && !fallo && explicacion && <div className="ph-empty" data-explicacion>{explicacion}</div>}
+          {!fallo && visits.map((v, i) => {
+            const cuenta   = i < cuentan;
+            const visitNum = cuenta ? cuentan - i : null;
+            const promo    = cuenta ? premioDeVisita(visitNum) : null;
             return (
-              <div key={v.id} className="ph-row" data-visita={visitNum} data-premio={promo || 'normal'}>
-                <div className="ph-num">{visitNum}</div>
+              <div key={v.id} className="ph-row" data-visita={visitNum ?? 'no-cuenta'} data-premio={promo || 'normal'}>
+                <div className="ph-num">{cuenta ? visitNum : '·'}</div>
                 <div className="ph-info">
                   <div className="ph-date">{fmtDate(v.visited_at)}</div>
                   {v.court && <div className="ph-court">Cancha {v.court}</div>}

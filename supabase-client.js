@@ -114,6 +114,27 @@
         court:     court || '01',
       });
     },
+    // Las visitas de un socio para la promoción, contadas EN LA BASE (count, sin traer filas):
+    //   total   — todas las registradas;
+    //   cuentan — las que hay desde members.vinculado_en, que es cuando se registró en la app y
+    //             lo que abre la promoción (Edgar, 25 de septiembre de 2026). `null` si no
+    //             participa: el socio dado de alta en el mostrador, sin vinculado_en. No es 0.
+    // Es la misma cuenta que hace el POS (services/socios, visitasDe). Hasta la v3.2 esta app
+    // contaba todas, y el mismo socio podía ver «7.ª gratis» aquí y otra cosa en el mostrador.
+    // Devuelve { data, error } como supabase-js: una lectura caída no es «0 visitas».
+    async contarVisitas(member) {
+      const contar = () => sb.from('visits').select('id', { count: 'exact', head: true }).eq('member_id', member.member_id);
+      const [todas, desde] = await Promise.all([
+        contar(),
+        member.vinculado_en ? contar().gte('visited_at', member.vinculado_en) : Promise.resolve(null),
+      ]);
+      const error = todas.error || (desde && desde.error);
+      if (error) return { data: null, error };
+      if (todas.count === null || (desde && desde.count === null)) {
+        return { data: null, error: new Error('la base no devolvió el conteo de visitas') };
+      }
+      return { data: { total: todas.count, cuentan: desde ? desde.count : null }, error: null };
+    },
     getMemberVisits(memberId) {
       return sb.from('visits')
         .select('*, members(name)')
@@ -128,9 +149,9 @@
         .limit(500)
         .then(mapear(conNombre));
     },
-    deleteVisit(id) {
-      return sb.from('visits').delete().eq('id', id);
-    },
+    // Sin deleteVisit, a propósito (Edgar, 30 de septiembre de 2026): una visita se borra solo
+    // desde el POS, por anular_visita, que deja registro en anulaciones. Cuando se quite la
+    // política de DELETE de visits, un borrado por la tabla dejaría de borrar sin decirlo.
 
     // ── Announcements table ───────────────────────────────────
     getAnnouncements() {

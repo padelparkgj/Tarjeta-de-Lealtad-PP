@@ -79,3 +79,29 @@ Socio de prueba `PP-26-10006`, 15 visitas registradas desde el panel, en local c
   0-1-2-3-4-5-6, y vuelven a 0 en la 8.ª y la 15.ª.
 - Historial: 15 filas en cada app, 0 discrepancias.
 - Contador de la ficha con 15 visitas: 2 gratis y 2 Silver (con la división de antes, 2 y 5).
+
+## Resultados del 30 de septiembre de 2026 (v3.3: el QR sin nombre, las visitas que cuentan, sin borrar)
+
+**Sin escribir en producción.** Allí solo hay los 12 socios reales, y una ficha de prueba se quedaría
+en la base (Edgar lo descartó el 29 de septiembre). Así que las dos páginas se sirvieron en local y
+un navegador sin cabeza (Playwright, Chrome) contestó las llamadas a Supabase con dos fichas en
+memoria: «PRUEBA Ana Registrada Tarde (borrar)», con cuenta y 5 visitas, 2 de antes de registrarse
+hace 3 días; y «PRUEBA Beto Mostrador (borrar)», sin `vinculado_en`, con 2. El guion no se versionó en
+ninguno de los dos repos (aquí no hay batería, a propósito, y el POS no se tocó en esta vuelta).
+
+- **Tarjeta**: 3 «visitas en la promoción», la siguiente Silver (4.ª), y la línea «Llevas 5 visitas.
+  Para la promoción cuentan 3…». El conteo son dos `HEAD` con `count`, el segundo con
+  `visited_at=gte.<vinculado_en>`; ninguna fila de visitas viaja para contar.
+- **QR**: decodificado de la pantalla, `PPGJ|PP-26-90001`, 25×25 módulos con un nombre de 36
+  caracteres.
+- **Mis visitas**: las 3 que cuentan numeradas 3-2-1, las 2 de antes sin número, y la explicación.
+- **Panel**: el lector acepta `PPGJ|cred` y `PPGJ|cred|nombre`; al escanear a Ana, 5 y 3 con la
+  línea y Silver para esta visita; confirmada, «Visita #4 de la promoción», releída; Beto, «Aún no
+  participa», sin premio; el historial ya no tiene botón de borrar; el perfil de Ana, 6 visitas y 4
+  en la promoción, una Silver, y el historial numerado 4-3-2-1 y dos sin número.
+- **El mismo guion contra la v3.2** (con `git stash`): rojo en la tarjeta —5 visitas y la siguiente
+  «normal», donde la regla del POS da la 4.ª Silver—.
+- **Contra la base real, solo lectura** (cuenta de personal): la misma consulta de conteo sobre las
+  12 fichas da 18 visitas y 18 que cuentan; en ninguna difieren hoy. La de Edgar, 1 y 1.
+- **No probado**: la cámara leyendo el QR nuevo en un aparato (la prueba Edgar contra lo publicado),
+  y el conteo con la sesión de un socio (la RLS de `visits` para el socio) —la del personal sí—.

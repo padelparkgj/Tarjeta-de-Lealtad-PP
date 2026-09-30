@@ -29,15 +29,17 @@ function isBirthdayMonth(birth) {
 }
 // La regla de visitas vive en regla-visitas.js (window.PPRegla), la misma que lee la
 // tarjeta del socio. Aquí no se calcula ningún premio.
-const { reglaVisitas, premioDeVisita, premiosEn, CICLO } = window.PPRegla;
+const { reglaVisitas, premioDeVisita, premiosEn, lineaConteo, CICLO } = window.PPRegla;
 const PUNTOS_CICLO = Array.from({ length: CICLO }, (_, i) => i + 1);
 const nesima = n => `${n}.ª`;
-// Parse QR payload: "PPGJ|PP-26-1234|Maria Fernandez"
+// Lo que trae el QR del socio: "PPGJ|PP-26-1234" desde la v3.3, o "PPGJ|PP-26-1234|Nombre" en
+// las tarjetas de antes, que siguen en capturas y descargas. Se aceptan los dos, y el nombre
+// del QR se ignora: el que vale es el de la ficha.
 function parseQr(text) {
   if (!text) return null;
   const p = text.split('|');
   if (p[0] !== 'PPGJ' || !p[1]) return null;
-  return { id: p[1].trim(), name: (p[2]||'').trim() };
+  return { id: p[1].trim() };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -224,15 +226,20 @@ function Scanner({ active, onScan }) {
 // ─────────────────────────────────────────────────────────────
 // Member panel — shows after QR scan, before confirming visit
 // ─────────────────────────────────────────────────────────────
-function MemberPanel({ member, visitCount, court, onConfirm, onCancel }) {
+function MemberPanel({ member, conteo, court, onConfirm, onCancel }) {
   const [busy, setBusy] = useState(false);
 
-  const regla      = reglaVisitas(visitCount);   // lo que toca en ESTA visita
-  const promo      = regla.premio;
+  // La promoción cuenta desde que se registró en la app (vinculado_en), como en el POS. Sin
+  // vinculado_en no participa: ni sellos ni premio, y se dice por qué.
+  const participa  = conteo.cuentan !== null;
+  const enPromo    = participa ? conteo.cuentan : 0;
+  const regla      = reglaVisitas(enPromo);   // lo que toca en ESTA visita
+  const promo      = participa ? regla.premio : null;
   const birthday   = isBirthdayMonth(member.birth);
+  const explicacion = lineaConteo(conteo, member.vinculado_en, 'el');
 
   // Sellos del ciclo actual (el ciclo es de 7 y vuelve a cero al completarse)
-  const filled = regla.enCiclo;
+  const filled = participa ? regla.enCiclo : 0;
 
   async function confirm() {
     setBusy(true);
@@ -248,9 +255,10 @@ function MemberPanel({ member, visitCount, court, onConfirm, onCancel }) {
       <div className="mp-meta">{member.member_id}{member.level ? ` · ${member.level}` : ''}</div>
 
       {/* Visit progress */}
-      <div className="mp-visits-block">
-        <div className="mp-visits-n">{visitCount}</div>
-        <div className="mp-visits-label">visitas acumuladas</div>
+      <div className="mp-visits-block" data-visitas={conteo.total} data-cuentan={participa ? enPromo : 'no-participa'}>
+        <div className="mp-visits-n">{participa ? enPromo : conteo.total}</div>
+        <div className="mp-visits-label">{participa && enPromo !== conteo.total ? 'visitas en la promoción' : 'visitas acumuladas'}</div>
+        {explicacion && <div className="mp-visits-label" data-explicacion style={{marginTop:6, textTransform:'none', letterSpacing:0}}>{explicacion}</div>}
         <div className="mp-cycle">
           {PUNTOS_CICLO.map(i => {
             const p = reglaVisitas(i - 1).premio;
@@ -333,14 +341,22 @@ function ConfettiEffect() {
 // ─────────────────────────────────────────────────────────────
 // Saved screen — shown after confirming visit
 // ─────────────────────────────────────────────────────────────
-function SavedScreen({ member, newTotal, onContinue }) {
-  // Lo que fue la visita que se acaba de guardar, y lo que sigue: las dos, de la regla.
-  const estaFue    = premioDeVisita(newTotal);
-  const sigue      = reglaVisitas(newTotal);
-  const nextIsFree = sigue.hastaGratis <= sigue.hastaSilver;
-  const nextLabel  = nextIsFree
-    ? `Su ${nesima(newTotal + sigue.hastaGratis)} visita es GRATIS`
-    : `Su ${nesima(newTotal + sigue.hastaSilver)} visita es a precio Silver`;
+function SavedScreen({ member, conteo, onContinue }) {
+  // `conteo` es la relectura de después de guardar (null si no se pudo leer): lo que fue esta
+  // visita sale de la base, no de sumar uno. Cuenta desde vinculado_en, como en el POS.
+  const participa  = conteo && conteo.cuentan !== null;
+  const newTotal   = participa ? conteo.cuentan : null;
+  const estaFue    = participa ? premioDeVisita(newTotal) : null;
+  const sigue      = participa ? reglaVisitas(newTotal) : null;
+  const nextIsFree = participa && sigue.hastaGratis <= sigue.hastaSilver;
+  const nextLabel  = !conteo
+    ? 'Quedó guardada, pero no se pudo leer cuántas lleva: su ficha lo dirá al abrirla.'
+    : !participa
+      ? lineaConteo(conteo, member?.vinculado_en, 'el')
+      : nextIsFree
+        ? `Su ${nesima(newTotal + sigue.hastaGratis)} visita es GRATIS`
+        : `Su ${nesima(newTotal + sigue.hastaSilver)} visita es a precio Silver`;
+  const explicacion = participa ? lineaConteo(conteo, member?.vinculado_en, 'el') : null;
 
   const isFreeMilestone   = estaFue === 'free';
   const isSilverMilestone = estaFue === 'silver';
@@ -350,7 +366,8 @@ function SavedScreen({ member, newTotal, onContinue }) {
       <div className="checkbubble"><Ic.check/></div>
       <div className="srl">¡Visita registrada!</div>
       <div className="srn">{member?.name || member?.member_id}</div>
-      <div className="srid">Visita #{newTotal}</div>
+      {participa && <div className="srid" data-visita-numero={newTotal}>Visita #{newTotal} de la promoción</div>}
+      {explicacion && <div className="sr-next" data-explicacion>{explicacion}</div>}
 
       {isFreeMilestone && (
         <div className="sr-milestone sr-milestone-free">
@@ -381,7 +398,8 @@ function ScannerScreen() {
   const [phase, setPhase]       = useState('scan'); // scan | lookup | confirm | saved
   const [parsed, setParsed]     = useState(null);
   const [memberInfo, setMember] = useState(null);
-  const [visitCount, setCount]  = useState(0);
+  const [conteo, setConteo]     = useState(null);   // { total, cuentan } antes de registrar
+  const [despues, setDespues]   = useState(null);   // la relectura de después de guardar
   const [todayCount, setToday]  = useState(0);
   const [toast, setToast]       = useState(null);
 
@@ -407,21 +425,20 @@ function ScannerScreen() {
     setParsed(p);
 
     try {
-      const [mRes, vRes] = await Promise.all([
-        window.PPSb.getMemberByMemberId(p.id),
-        window.PPSb.getMemberVisits(p.id),
-      ]);
+      const mRes = await window.PPSb.getMemberByMemberId(p.id);
       // supabase-js no lanza: el fallo viene en `error`. Una lectura caída no es
       // «cero visitas», y una credencial sin ficha no es un socio con el nombre del QR.
-      const fallo = mRes.error || vRes.error;
-      if (fallo) throw fallo;
+      if (mRes.error) throw mRes.error;
       if (!mRes.data) {
         setPhase('scan');
         showToast(`La credencial ${p.id} no tiene ficha`, 'err');
         return;
       }
+      // Las visitas se cuentan en la base, y las de la promoción desde vinculado_en.
+      const cRes = await window.PPSb.contarVisitas(mRes.data);
+      if (cRes.error) throw cRes.error;
       setMember(mRes.data);
-      setCount((vRes.data || []).length);
+      setConteo(cRes.data);
       setPhase('confirm');
     } catch (e) {
       setPhase('scan');
@@ -436,7 +453,7 @@ function ScannerScreen() {
     const id = manual.trim().toUpperCase();
     if (!id) return;
     setManual('');
-    handleScan(`PPGJ|${id}|`);
+    handleScan(`PPGJ|${id}`);
   }
 
   async function confirmVisit() {
@@ -450,6 +467,10 @@ function ScannerScreen() {
     }
     if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
     setToday(c => c + 1);
+    // Lo que fue esta visita sale de releer: si otro aparato registró entretanto, sumar uno a
+    // lo leído antes daría otro número.
+    const cRes = await window.PPSb.contarVisitas(memberInfo);
+    setDespues(cRes.error ? null : cRes.data);
     setPhase('saved');
   }
 
@@ -457,7 +478,8 @@ function ScannerScreen() {
     setPhase('scan');
     setParsed(null);
     setMember(null);
-    setCount(0);
+    setConteo(null);
+    setDespues(null);
   }
 
   return (
@@ -487,12 +509,12 @@ function ScannerScreen() {
           <p>Consultando datos del socio…</p>
         </div>
       )}
-      {phase === 'confirm' && memberInfo && (
-        <MemberPanel member={memberInfo} visitCount={visitCount}
+      {phase === 'confirm' && memberInfo && conteo && (
+        <MemberPanel member={memberInfo} conteo={conteo}
           court={court} onConfirm={confirmVisit} onCancel={reset}/>
       )}
       {phase === 'saved' && (
-        <SavedScreen member={memberInfo} newTotal={visitCount+1} onContinue={reset}/>
+        <SavedScreen member={memberInfo} conteo={despues} onContinue={reset}/>
       )}
 
       <div className="scanner-meta">
@@ -555,11 +577,10 @@ function LogScreen({ onViewMember }) {
   }
   useEffect(load, []);
 
-  async function deleteVisit(id) {
-    if (!window.PPSb) return;
-    await window.PPSb.deleteVisit(id);
-    setVisits(vs => vs.filter(v => v.id !== id));
-  }
+  // Sin botón de borrar, a propósito (Edgar, 30 de septiembre de 2026): una visita se borra
+  // solo desde el POS, por anular_visita, que deja registro. Cuando se quite la política de
+  // DELETE de visits, un borrado por la tabla dejaría de borrar sin decirlo, y este renglón
+  // desaparecería de la lista igual. Un botón que miente es peor que no tenerlo.
 
   const today    = visits.filter(v => isToday(v.visited_at));
   const filtered = filterVisits(visits, filter);
@@ -600,13 +621,6 @@ function LogScreen({ onViewMember }) {
               <div className="log-name">{v.member_name || v.member_id}</div>
               <div className="log-sub">{v.member_id} · {fmtDate(v.visited_at)}</div>
             </div>
-            <button
-              className="log-del-btn"
-              title="Eliminar registro"
-              onClick={e => { e.stopPropagation(); deleteVisit(v.id); }}
-            >
-              <Ic.trash style={{width:14,height:14}}/>
-            </button>
           </div>
         ))}
       </div>
@@ -623,6 +637,8 @@ function MemberProfileModal({ memberId, memberName: fallbackName, onClose }) {
   const [signups,  setSignups]  = useState([]);
   const [annMap,   setAnnMap]   = useState({});
   const [loading,  setLoading]  = useState(true);
+  const [conteo,   setConteo]   = useState(null);   // { total, cuentan }
+  const [conteoFallo, setConteoFallo] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -634,6 +650,12 @@ function MemberProfileModal({ memberId, memberName: fallbackName, onClose }) {
       ]);
       setMember(mRes.data || null);
       setVisits(vRes.data || []);
+      // Las que cuentan para la promoción, contadas en la base desde vinculado_en.
+      if (mRes.data) {
+        const cRes = await window.PPSb.contarVisitas(mRes.data);
+        if (cRes.error) { console.error('[contarVisitas]', cRes.error); setConteoFallo(true); }
+        else setConteo(cRes.data);
+      } else setConteoFallo(true);
       const sData = sRes.data || [];
       setSignups(sData);
       if (sData.length > 0) {
@@ -651,11 +673,16 @@ function MemberProfileModal({ memberId, memberName: fallbackName, onClose }) {
   }, [memberId]);
 
   const displayName  = member?.name || fallbackName || memberId;
-  const totalVisits  = visits.length;
-  const cycleFilled  = reglaVisitas(totalVisits).enCiclo;
+  const totalVisits  = conteo ? conteo.total : visits.length;
+  // La promoción cuenta desde vinculado_en: los premios y los sellos salen de las que cuentan.
+  // Las primeras `cuentan` de la lista (de la más reciente a la más vieja) son ésas.
+  const participa    = conteo !== null && conteo.cuentan !== null;
+  const cuentan      = participa ? conteo.cuentan : 0;
+  const cycleFilled  = participa ? reglaVisitas(cuentan).enCiclo : 0;
   // Cuántas de sus visitas fueron Silver y cuántas gratis, contadas con la regla:
   // antes eran floor(total/3) y floor(total/6), que contaban de más.
-  const premios      = premiosEn(totalVisits);
+  const premios      = premiosEn(cuentan);
+  const explicacion  = conteo ? lineaConteo(conteo, member?.vinculado_en, 'el') : null;
   const birth  = member?.birth    ? new Date(member.birth + 'T00:00:00').toLocaleDateString('es-MX',{day:'2-digit',month:'short'}) : null;
   const joined = member?.joined_at ? new Date(member.joined_at).toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}) : null;
 
@@ -683,7 +710,8 @@ function MemberProfileModal({ memberId, memberName: fallbackName, onClose }) {
           <div className="mp-modal-body">
             {/* Stats */}
             <div className="mp-modal-stats">
-              <div className="mp-stat"><strong>{totalVisits}</strong><span>Visitas</span></div>
+              <div className="mp-stat" data-visitas={conteoFallo ? 'no-se' : totalVisits}><strong>{conteoFallo ? '—' : totalVisits}</strong><span>Visitas</span></div>
+              {participa && cuentan !== totalVisits && <div className="mp-stat" data-cuentan={cuentan}><strong>{cuentan}</strong><span>En la promoción</span></div>}
               <div className="mp-stat" data-premios-gratis={premios.gratis}><strong>{premios.gratis}</strong><span>Canchas gratis</span></div>
               <div className="mp-stat" data-premios-silver={premios.silver}><strong>{premios.silver}</strong><span>Visitas Silver</span></div>
             </div>
@@ -695,6 +723,9 @@ function MemberProfileModal({ memberId, memberName: fallbackName, onClose }) {
                 return <div key={i} className={`cycle-dot ${i<=cycleFilled?'filled':''} ${p==='silver'?'mark-silver':''} ${p==='free'?'mark-free':''}`}/>;
               })}
             </div>
+
+            {conteoFallo && <div className="empty" style={{padding:'8px 0'}}>No se pudo leer cuántas visitas cuentan para su promoción.</div>}
+            {explicacion && <div className="empty" data-explicacion style={{padding:'8px 0'}}>{explicacion}</div>}
 
             {/* Member details (only if loaded from DB) */}
             {member && (
@@ -734,11 +765,12 @@ function MemberProfileModal({ memberId, memberName: fallbackName, onClose }) {
             {visits.length === 0 && <div className="empty" style={{padding:'8px 0'}}>Sin visitas registradas.</div>}
             <div className="mp-visit-list">
               {visits.map((v, i) => {
-                const visitNum = totalVisits - i;
-                const promo = premioDeVisita(visitNum);
+                const cuenta   = i < cuentan;
+                const visitNum = cuenta ? cuentan - i : null;
+                const promo    = cuenta ? premioDeVisita(visitNum) : null;
                 return (
-                  <div key={v.id} className="mp-visit-row" data-visita={visitNum} data-premio={promo || 'normal'}>
-                    <div className="mp-visit-num">{visitNum}</div>
+                  <div key={v.id} className="mp-visit-row" data-visita={visitNum ?? 'no-cuenta'} data-premio={promo || 'normal'}>
+                    <div className="mp-visit-num">{cuenta ? visitNum : '·'}</div>
                     <div className="mp-visit-info">
                       <div className="mp-visit-date">{fmtDate(v.visited_at)}</div>
                       {v.court && <div className="mp-visit-court">Cancha {v.court}</div>}
@@ -1621,7 +1653,7 @@ function SettingsScreen({ onLogout }) {
         <div className="set-row"><span>Club</span><strong>{cfg.club?.name||'Padel Park'} · {cfg.club?.city||''}</strong></div>
       </div>
       <div className="set-card">
-        <div className="set-row"><span>Versión</span><strong>v3.2 · base del POS</strong></div>
+        <div className="set-row"><span>Versión</span><strong>v3.3 · base del POS</strong></div>
       </div>
       <h3 style={{marginTop:22}}>Instrucciones</h3>
       <ol className="steps-list">
@@ -1651,7 +1683,7 @@ function AdminEasterEgg({ onClose }) {
           <img src="assets/logo-navy.jpg" alt="PP" />
         </div>
         <div className="ee-name">Padel Park Gran Jardín</div>
-        <div className="ee-version">v3.2 · Panel de Recepción</div>
+        <div className="ee-version">v3.3 · Panel de Recepción</div>
         <div className="ee-divider" />
         <div className="ee-made">Desarrollado por</div>
         <div className="ee-creator">ProcesaLab</div>

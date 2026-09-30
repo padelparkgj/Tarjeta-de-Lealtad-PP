@@ -900,16 +900,6 @@ body.admin-body-bg {
 }
 
 /* ── Log row delete button ───────────────────────────────── */
-.log-del-btn {
-  flex-shrink: 0;
-  width: 30px; height: 30px;
-  border-radius: 8px;
-  background: rgba(200,50,50,0.07);
-  color: #c03;
-  display: grid; place-items: center;
-  transition: background 0.15s;
-}
-.log-del-btn:hover { background: rgba(200,50,50,0.18); }
 
 /* ── SavedScreen milestone ───────────────────────────────── */
 .sr-milestone {

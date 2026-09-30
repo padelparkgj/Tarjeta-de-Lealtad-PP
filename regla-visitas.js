@@ -64,5 +64,28 @@
     return { silver, gratis };
   }
 
-  window.PPRegla = { reglaVisitas, premioDeVisita, premiosEn, CICLO, POS_SILVER, POS_GRATIS };
+  /**
+   * La línea que explica por qué el total y lo que cuenta difieren, o `null` si no difieren.
+   * La promoción cuenta desde que el socio se registró en la app (members.vinculado_en); las
+   * visitas de antes quedan en su historial y no cuentan. Sin culpar a nadie: es la regla.
+   * @param {{ total: number, cuentan: number|null }} conteo  lo que devuelve PPSb.contarVisitas
+   * @param {string|null} desde  members.vinculado_en
+   * @param {'tu'|'el'} persona  'tu' en la app del socio, 'el' en el panel
+   */
+  function lineaConteo(conteo, desde, persona) {
+    const tu = persona === 'tu';
+    if (conteo.cuentan === null) {
+      return tu
+        ? 'Tu promoción empieza a contar cuando tu cuenta quede registrada en la app. Tus visitas se guardan igual.'
+        : 'Aún no participa en la promoción: se dio de alta en el mostrador y no se ha registrado en la app. Sus visitas se guardan igual.';
+    }
+    if (conteo.cuentan === conteo.total) return null;
+    const fecha = desde ? new Date(desde).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+    const antes = conteo.total - conteo.cuentan;
+    return (tu ? `Llevas ${conteo.total} visitas. Para la promoción cuentan ${conteo.cuentan}: las de desde que te registraste en la app`
+               : `${conteo.total} visitas en total. Para la promoción cuentan ${conteo.cuentan}: las de desde que se registró en la app`)
+      + (fecha ? `, el ${fecha}` : '') + `. ${antes === 1 ? 'La de antes queda' : `Las ${antes} de antes quedan`} en el historial.`;
+  }
+
+  window.PPRegla = { reglaVisitas, premioDeVisita, premiosEn, lineaConteo, CICLO, POS_SILVER, POS_GRATIS };
 })();
