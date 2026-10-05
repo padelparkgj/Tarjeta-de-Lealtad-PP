@@ -27,11 +27,10 @@ function isBirthdayMonth(birth) {
   const m = parseInt((birth.split('-')[1] || birth.split('/')[1] || '0'));
   return m === new Date().getMonth() + 1;
 }
-// La regla de visitas vive en regla-visitas.js (window.PPRegla), la misma que lee la
-// tarjeta del socio. Aquí no se calcula ningún premio.
-const { reglaVisitas, premioDeVisita, premiosEn, lineaConteo, CICLO } = window.PPRegla;
-const PUNTOS_CICLO = Array.from({ length: CICLO }, (_, i) => i + 1);
+// La promoción la calcula la base (promocion_de, la misma del POS) y llega por
+// PPSb.promocionDe: aquí se pinta lo que dice, sin contar ni recorrer nada (v3.4).
 const nesima = n => `${n}.ª`;
+const PREMIO_TXT = { silver: 'a precio Silver', gratis: 'GRATIS' };
 // Lo que trae el QR del socio: "PPGJ|PP-26-1234" desde la v3.3, o "PPGJ|PP-26-1234|Nombre" en
 // las tarjetas de antes, que siguen en capturas y descargas. Se aceptan los dos, y el nombre
 // del QR se ignora: el que vale es el de la ficha.
@@ -226,20 +225,16 @@ function Scanner({ active, onScan }) {
 // ─────────────────────────────────────────────────────────────
 // Member panel — shows after QR scan, before confirming visit
 // ─────────────────────────────────────────────────────────────
-function MemberPanel({ member, conteo, court, onConfirm, onCancel }) {
+function MemberPanel({ member, total, promo: p, promoError, onConfirm, onCancel }) {
   const [busy, setBusy] = useState(false);
 
-  // La promoción cuenta desde que se registró en la app (vinculado_en), como en el POS. Sin
-  // vinculado_en no participa: ni sellos ni premio, y se dice por qué.
-  const participa  = conteo.cuentan !== null;
-  const enPromo    = participa ? conteo.cuentan : 0;
-  const regla      = reglaVisitas(enPromo);   // lo que toca en ESTA visita
-  const promo      = participa ? regla.premio : null;
+  // Todo sale de promocion_de: lo que toca en ESTA visita es `siguiente`, los sellos son
+  // `ciclo_actual`. Sin vinculado_en no participa: ni sellos ni premio, y se dice por qué.
+  // Si la base no contestó (`p` null), se dice eso: ni sellos vacíos ni un cero.
+  const participa  = !!(p && p.participa);
+  const promo      = participa ? p.siguiente.premio : null;   // lo que toca en ESTA visita
   const birthday   = isBirthdayMonth(member.birth);
-  const explicacion = lineaConteo(conteo, member.vinculado_en, 'el');
-
-  // Sellos del ciclo actual (el ciclo es de 7 y vuelve a cero al completarse)
-  const filled = participa ? regla.enCiclo : 0;
+  const explicacion = p ? window.PPSb.lineaConteo(total, p, 'el') : window.PPSb.faltaPromocion(promoError);
 
   async function confirm() {
     setBusy(true);
@@ -255,29 +250,35 @@ function MemberPanel({ member, conteo, court, onConfirm, onCancel }) {
       <div className="mp-meta">{member.member_id}{member.level ? ` · ${member.level}` : ''}</div>
 
       {/* Visit progress */}
-      <div className="mp-visits-block" data-visitas={conteo.total} data-cuentan={participa ? enPromo : 'no-participa'}>
-        <div className="mp-visits-n">{participa ? enPromo : conteo.total}</div>
-        <div className="mp-visits-label">{participa && enPromo !== conteo.total ? 'visitas en la promoción' : 'visitas acumuladas'}</div>
+      <div className="mp-visits-block" data-visitas={total ?? 'no-se'} data-cuentan={!p ? 'no-se' : participa ? p.visitas_cuentan : 'no-participa'}>
+        <div className="mp-visits-n">{participa ? p.visitas_cuentan : (total ?? '—')}</div>
+        <div className="mp-visits-label">{participa && p.visitas_cuentan !== total ? 'visitas en la promoción' : 'visitas acumuladas'}</div>
+        {participa && (
+          <div className="mp-visits-label" data-esta-visita={p.siguiente.numero} style={{marginTop:6, textTransform:'none', letterSpacing:0}}>
+            Esta será su {nesima(p.siguiente.numero)} visita de la promoción
+          </div>
+        )}
         {explicacion && <div className="mp-visits-label" data-explicacion style={{marginTop:6, textTransform:'none', letterSpacing:0}}>{explicacion}</div>}
-        <div className="mp-cycle">
-          {PUNTOS_CICLO.map(i => {
-            const p = reglaVisitas(i - 1).premio;
-            return (
-              <div key={i}
-                className={`cycle-dot ${i <= filled ? 'filled' : ''} ${p==='silver'?'mark-silver':''} ${p==='free'?'mark-free':''}`}
-                title={p==='silver'?'Silver':p==='free'?'Gratis':''}
-              />
-            );
-          })}
-        </div>
-        <div className="mp-cycle-legend">
-          <span><span className="cd-silver"/>Silver</span>
-          <span><span className="cd-free"/>Gratis</span>
-        </div>
+        {participa && (
+          <>
+            <div className="mp-cycle">
+              {window.PPSb.puntosDelCiclo(p.ciclo_actual).map(d => (
+                <div key={d.i}
+                  className={`cycle-dot ${d.lleno ? 'filled' : ''} ${d.premio==='silver'?'mark-silver':''} ${d.premio==='gratis'?'mark-free':''}`}
+                  title={d.premio==='silver'?'Silver':d.premio==='gratis'?'Gratis':''}
+                />
+              ))}
+            </div>
+            <div className="mp-cycle-legend">
+              <span><span className="cd-silver"/>Silver</span>
+              <span><span className="cd-free"/>Gratis</span>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Promotions for THIS visit */}
-      {promo === 'free' && (
+      {promo === 'gratis' && (
         <div className="mp-promo promo-free">
           <Ic.gift style={{width:16,height:16}}/> ¡Esta visita es <strong>GRATIS</strong>!
         </div>
@@ -292,8 +293,6 @@ function MemberPanel({ member, conteo, court, onConfirm, onCancel }) {
           <Ic.cake style={{width:16,height:16}}/> ¡Mes de <strong>cumpleaños</strong>! 🎂
         </div>
       )}
-
-      <div className="mp-court-tag">Cancha {court}</div>
 
       <button className="btn btn-primary" onClick={confirm} disabled={busy} style={{width:'100%'}}>
         {busy ? 'Registrando…' : 'Confirmar visita'}
@@ -341,32 +340,33 @@ function ConfettiEffect() {
 // ─────────────────────────────────────────────────────────────
 // Saved screen — shown after confirming visit
 // ─────────────────────────────────────────────────────────────
-function SavedScreen({ member, conteo, onContinue }) {
-  // `conteo` es la relectura de después de guardar (null si no se pudo leer): lo que fue esta
-  // visita sale de la base, no de sumar uno. Cuenta desde vinculado_en, como en el POS.
-  const participa  = conteo && conteo.cuentan !== null;
-  const newTotal   = participa ? conteo.cuentan : null;
-  const estaFue    = participa ? premioDeVisita(newTotal) : null;
-  const sigue      = participa ? reglaVisitas(newTotal) : null;
-  const nextIsFree = participa && sigue.hastaGratis <= sigue.hastaSilver;
-  const nextLabel  = !conteo
-    ? 'Quedó guardada, pero no se pudo leer cuántas lleva: su ficha lo dirá al abrirla.'
+function SavedScreen({ member, visitaId, despues, onContinue }) {
+  // `despues` es la relectura de promocion_de tras guardar: { promo, total } o { error }. Lo que
+  // fue esta visita se busca en ella POR SU ID, no se suma uno: si otro aparato registró
+  // entretanto, «la última» sería otra.
+  const promo      = despues && despues.promo;
+  const participa  = !!(promo && promo.participa);
+  const esta       = participa ? window.PPSb.porVisita(promo).get(visitaId) || null : null;
+  const prox       = participa ? promo.proxima_con_premio : null;
+  const nextLabel  = !promo
+    ? `Quedó guardada. ${window.PPSb.faltaPromocion(despues && despues.error)}`
     : !participa
-      ? lineaConteo(conteo, member?.vinculado_en, 'el')
-      : nextIsFree
-        ? `Su ${nesima(newTotal + sigue.hastaGratis)} visita es GRATIS`
-        : `Su ${nesima(newTotal + sigue.hastaSilver)} visita es a precio Silver`;
-  const explicacion = participa ? lineaConteo(conteo, member?.vinculado_en, 'el') : null;
+      ? window.PPSb.lineaConteo(despues.total, promo, 'el')
+      : prox
+        ? `Su ${nesima(prox.numero)} visita es ${PREMIO_TXT[prox.premio]}`
+        : null;
+  const explicacion = participa ? window.PPSb.lineaConteo(despues.total, promo, 'el') : null;
 
-  const isFreeMilestone   = estaFue === 'free';
-  const isSilverMilestone = estaFue === 'silver';
+  const isFreeMilestone   = esta && esta.premio === 'gratis';
+  const isSilverMilestone = esta && esta.premio === 'silver';
 
   return (
     <div className="scan-result fade-in">
       <div className="checkbubble"><Ic.check/></div>
       <div className="srl">¡Visita registrada!</div>
       <div className="srn">{member?.name || member?.member_id}</div>
-      {participa && <div className="srid" data-visita-numero={newTotal}>Visita #{newTotal} de la promoción</div>}
+      {esta && <div className="srid" data-visita-numero={esta.numero}>Visita #{esta.numero} de la promoción</div>}
+      {participa && !esta && <div className="srid" data-visita-numero="no-esta">Quedó guardada, pero la promoción no la cuenta todavía.</div>}
       {explicacion && <div className="sr-next" data-explicacion>{explicacion}</div>}
 
       {isFreeMilestone && (
@@ -379,7 +379,7 @@ function SavedScreen({ member, conteo, onContinue }) {
           ⚡ Esta visita fue a precio Silver
         </div>
       )}
-      <div className="sr-next">{nextLabel}</div>
+      {nextLabel && <div className="sr-next" data-proxima>{nextLabel}</div>}
 
       {(isFreeMilestone || isSilverMilestone) && <ConfettiEffect />}
 
@@ -390,15 +390,24 @@ function SavedScreen({ member, conteo, onContinue }) {
   );
 }
 
+// La promoción de un socio y su total, leídos juntos: { total, promo, error }. `promo` es el jsonb
+// de promocion_de tal cual, o null con su `error`; `total` es null si no se pudo contar.
+async function leerPromocion(memberId) {
+  const [pRes, cRes] = await Promise.all([window.PPSb.promocionDe(memberId), window.PPSb.contarVisitas(memberId)]);
+  if (pRes.error) console.error('[promocionDe]', pRes.error);
+  if (cRes.error) console.error('[contarVisitas]', cRes.error);
+  return { promo: pRes.error ? null : pRes.data, error: pRes.error || null, total: cRes.error ? null : cRes.data };
+}
+
 // ─────────────────────────────────────────────────────────────
 // Scanner screen (main tab)
 // ─────────────────────────────────────────────────────────────
 function ScannerScreen() {
-  const [court, setCourt]       = useState(() => localStorage.getItem('pp_admin_court') || '01');
   const [phase, setPhase]       = useState('scan'); // scan | lookup | confirm | saved
   const [parsed, setParsed]     = useState(null);
   const [memberInfo, setMember] = useState(null);
-  const [conteo, setConteo]     = useState(null);   // { total, cuentan } antes de registrar
+  const [antes, setAntes]       = useState(null);   // { total, promo, error } antes de registrar
+  const [visitaId, setVisitaId] = useState(null);   // el id de la visita que se acaba de guardar
   const [despues, setDespues]   = useState(null);   // la relectura de después de guardar
   const [todayCount, setToday]  = useState(0);
   const [toast, setToast]       = useState(null);
@@ -434,11 +443,10 @@ function ScannerScreen() {
         showToast(`La credencial ${p.id} no tiene ficha`, 'err');
         return;
       }
-      // Las visitas se cuentan en la base, y las de la promoción desde vinculado_en.
-      const cRes = await window.PPSb.contarVisitas(mRes.data);
-      if (cRes.error) throw cRes.error;
+      // La promoción la dice promocion_de. Si no contesta, el panel lo dice y la visita se puede
+      // registrar igual: guardar la visita no depende de saber qué premio lleva.
       setMember(mRes.data);
-      setConteo(cRes.data);
+      setAntes(await leerPromocion(mRes.data.member_id));
       setPhase('confirm');
     } catch (e) {
       setPhase('scan');
@@ -460,17 +468,16 @@ function ScannerScreen() {
     // Una visita que la base no guardó no se celebra: la pantalla de «guardada» sale
     // solo con la respuesta buena. Un QR de alguien sin ficha la rechaza la llave
     // foránea, y el motivo se dice.
-    const { error } = await window.PPSb.logVisit(parsed.id, court);
+    const { data, error } = await window.PPSb.logVisit(parsed.id);
     if (error) {
       showToast('No se registró la visita: ' + error.message, 'err');
       return;
     }
     if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
     setToday(c => c + 1);
-    // Lo que fue esta visita sale de releer: si otro aparato registró entretanto, sumar uno a
-    // lo leído antes daría otro número.
-    const cRes = await window.PPSb.contarVisitas(memberInfo);
-    setDespues(cRes.error ? null : cRes.data);
+    // Lo que fue esta visita sale de releer a la base, y se busca por su id.
+    setVisitaId(data.id);
+    setDespues(await leerPromocion(memberInfo.member_id));
     setPhase('saved');
   }
 
@@ -478,22 +485,13 @@ function ScannerScreen() {
     setPhase('scan');
     setParsed(null);
     setMember(null);
-    setConteo(null);
+    setAntes(null);
+    setVisitaId(null);
     setDespues(null);
   }
 
   return (
     <div className="scanner-screen">
-      <div className="court-bar">
-        <span className="court-lbl">CANCHA</span>
-        {['01','02','03'].map(c => (
-          <button key={c} className={`court-pill ${court===c?'active':''}`}
-            onClick={() => { setCourt(c); localStorage.setItem('pp_admin_court', c); }}>
-            {c}
-          </button>
-        ))}
-      </div>
-
       {phase === 'scan'    && <Scanner active onScan={handleScan}/>}
       {phase === 'scan'    && (
         <form className="field" onSubmit={submitManual} style={{display:'flex', gap:8, margin:'12px 0'}}>
@@ -509,12 +507,12 @@ function ScannerScreen() {
           <p>Consultando datos del socio…</p>
         </div>
       )}
-      {phase === 'confirm' && memberInfo && conteo && (
-        <MemberPanel member={memberInfo} conteo={conteo}
-          court={court} onConfirm={confirmVisit} onCancel={reset}/>
+      {phase === 'confirm' && memberInfo && antes && (
+        <MemberPanel member={memberInfo} total={antes.total} promo={antes.promo} promoError={antes.error}
+          onConfirm={confirmVisit} onCancel={reset}/>
       )}
       {phase === 'saved' && (
-        <SavedScreen member={memberInfo} conteo={despues} onContinue={reset}/>
+        <SavedScreen member={memberInfo} visitaId={visitaId} despues={despues} onContinue={reset}/>
       )}
 
       <div className="scanner-meta">
@@ -637,8 +635,7 @@ function MemberProfileModal({ memberId, memberName: fallbackName, onClose }) {
   const [signups,  setSignups]  = useState([]);
   const [annMap,   setAnnMap]   = useState({});
   const [loading,  setLoading]  = useState(true);
-  const [conteo,   setConteo]   = useState(null);   // { total, cuentan }
-  const [conteoFallo, setConteoFallo] = useState(false);
+  const [lectura,  setLectura]  = useState(null);   // { total, promo, error } de leerPromocion
 
   useEffect(() => {
     async function load() {
@@ -650,12 +647,10 @@ function MemberProfileModal({ memberId, memberName: fallbackName, onClose }) {
       ]);
       setMember(mRes.data || null);
       setVisits(vRes.data || []);
-      // Las que cuentan para la promoción, contadas en la base desde vinculado_en.
-      if (mRes.data) {
-        const cRes = await window.PPSb.contarVisitas(mRes.data);
-        if (cRes.error) { console.error('[contarVisitas]', cRes.error); setConteoFallo(true); }
-        else setConteo(cRes.data);
-      } else setConteoFallo(true);
+      // La promoción, de promocion_de; el total, contado en la base.
+      setLectura(mRes.data
+        ? await leerPromocion(mRes.data.member_id)
+        : { total: null, promo: null, error: mRes.error || new Error('sin ficha') });
       const sData = sRes.data || [];
       setSignups(sData);
       if (sData.length > 0) {
@@ -673,16 +668,18 @@ function MemberProfileModal({ memberId, memberName: fallbackName, onClose }) {
   }, [memberId]);
 
   const displayName  = member?.name || fallbackName || memberId;
-  const totalVisits  = conteo ? conteo.total : visits.length;
-  // La promoción cuenta desde vinculado_en: los premios y los sellos salen de las que cuentan.
-  // Las primeras `cuentan` de la lista (de la más reciente a la más vieja) son ésas.
-  const participa    = conteo !== null && conteo.cuentan !== null;
-  const cuentan      = participa ? conteo.cuentan : 0;
-  const cycleFilled  = participa ? reglaVisitas(cuentan).enCiclo : 0;
-  // Cuántas de sus visitas fueron Silver y cuántas gratis, contadas con la regla:
-  // antes eran floor(total/3) y floor(total/6), que contaban de más.
-  const premios      = premiosEn(cuentan);
-  const explicacion  = conteo ? lineaConteo(conteo, member?.vinculado_en, 'el') : null;
+  // Todo lo de la promoción sale de promocion_de: los sellos de `ciclo_actual`, el número y el
+  // premio de cada visita de `visitas`, buscadas por id. Aquí no se cuenta ningún ciclo.
+  const promo        = lectura && lectura.promo;
+  const promoFallo   = !!(lectura && !promo);
+  const totalVisits  = lectura && lectura.total !== null ? lectura.total : null;
+  const participa    = !!(promo && promo.participa);
+  const deVisita     = promo ? window.PPSb.porVisita(promo) : new Map();
+  // Cuántas de sus visitas fueron Silver y cuántas gratis: las que la base marcó así.
+  const premios      = participa
+    ? { gratis: promo.visitas.filter(v => v.premio === 'gratis').length, silver: promo.visitas.filter(v => v.premio === 'silver').length }
+    : null;
+  const explicacion  = promo ? window.PPSb.lineaConteo(totalVisits, promo, 'el') : null;
   const birth  = member?.birth    ? new Date(member.birth + 'T00:00:00').toLocaleDateString('es-MX',{day:'2-digit',month:'short'}) : null;
   const joined = member?.joined_at ? new Date(member.joined_at).toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}) : null;
 
@@ -710,21 +707,28 @@ function MemberProfileModal({ memberId, memberName: fallbackName, onClose }) {
           <div className="mp-modal-body">
             {/* Stats */}
             <div className="mp-modal-stats">
-              <div className="mp-stat" data-visitas={conteoFallo ? 'no-se' : totalVisits}><strong>{conteoFallo ? '—' : totalVisits}</strong><span>Visitas</span></div>
-              {participa && cuentan !== totalVisits && <div className="mp-stat" data-cuentan={cuentan}><strong>{cuentan}</strong><span>En la promoción</span></div>}
-              <div className="mp-stat" data-premios-gratis={premios.gratis}><strong>{premios.gratis}</strong><span>Canchas gratis</span></div>
-              <div className="mp-stat" data-premios-silver={premios.silver}><strong>{premios.silver}</strong><span>Visitas Silver</span></div>
+              <div className="mp-stat" data-visitas={totalVisits ?? 'no-se'}><strong>{totalVisits ?? '—'}</strong><span>Visitas</span></div>
+              {participa && promo.visitas_cuentan !== totalVisits && <div className="mp-stat" data-cuentan={promo.visitas_cuentan}><strong>{promo.visitas_cuentan}</strong><span>En la promoción</span></div>}
+              {premios && <div className="mp-stat" data-premios-gratis={premios.gratis}><strong>{premios.gratis}</strong><span>Canchas gratis</span></div>}
+              {premios && <div className="mp-stat" data-premios-silver={premios.silver}><strong>{premios.silver}</strong><span>Visitas Silver</span></div>}
             </div>
 
             {/* Cycle */}
-            <div className="mp-modal-cycle">
-              {PUNTOS_CICLO.map(i => {
-                const p = reglaVisitas(i - 1).premio;
-                return <div key={i} className={`cycle-dot ${i<=cycleFilled?'filled':''} ${p==='silver'?'mark-silver':''} ${p==='free'?'mark-free':''}`}/>;
-              })}
-            </div>
+            {participa && (
+              <div className="mp-modal-cycle" data-ciclo-hechas={promo.ciclo_actual.hechas}>
+                {window.PPSb.puntosDelCiclo(promo.ciclo_actual).map(d => (
+                  <div key={d.i} className={`cycle-dot ${d.lleno?'filled':''} ${d.premio==='silver'?'mark-silver':''} ${d.premio==='gratis'?'mark-free':''}`}/>
+                ))}
+              </div>
+            )}
+            {participa && (
+              <div className="empty" data-siguiente={promo.siguiente.numero} style={{padding:'8px 0'}}>
+                Su siguiente es la {nesima(promo.siguiente.numero)} visita de la promoción
+                {promo.proxima_con_premio ? ` · la ${nesima(promo.proxima_con_premio.numero)} es ${PREMIO_TXT[promo.proxima_con_premio.premio]}` : ''}
+              </div>
+            )}
 
-            {conteoFallo && <div className="empty" style={{padding:'8px 0'}}>No se pudo leer cuántas visitas cuentan para su promoción.</div>}
+            {promoFallo && <div className="empty" data-promocion="no-se" style={{padding:'8px 0'}}>{window.PPSb.faltaPromocion(lectura.error)}</div>}
             {explicacion && <div className="empty" data-explicacion style={{padding:'8px 0'}}>{explicacion}</div>}
 
             {/* Member details (only if loaded from DB) */}
@@ -761,22 +765,24 @@ function MemberProfileModal({ memberId, memberName: fallbackName, onClose }) {
             )}
 
             {/* Visit history */}
-            <div className="mp-section-title">Historial de visitas ({totalVisits})</div>
+            <div className="mp-section-title">Historial de visitas ({totalVisits ?? visits.length})</div>
             {visits.length === 0 && <div className="empty" style={{padding:'8px 0'}}>Sin visitas registradas.</div>}
             <div className="mp-visit-list">
-              {visits.map((v, i) => {
-                const cuenta   = i < cuentan;
-                const visitNum = cuenta ? cuentan - i : null;
-                const promo    = cuenta ? premioDeVisita(visitNum) : null;
+              {visits.map(v => {
+                // El número y el premio de cada visita, como los dio la base; las que no cuentan
+                // (antes de vinculado_en, o sin promoción leída) no llevan ninguno.
+                const enPromo = deVisita.get(v.id) || null;
+                const visitNum = enPromo ? enPromo.numero : null;
+                const premio   = enPromo ? enPromo.premio : null;
                 return (
-                  <div key={v.id} className="mp-visit-row" data-visita={visitNum ?? 'no-cuenta'} data-premio={promo || 'normal'}>
-                    <div className="mp-visit-num">{cuenta ? visitNum : '·'}</div>
+                  <div key={v.id} className="mp-visit-row" data-visita={visitNum ?? 'no-cuenta'} data-premio={premio || 'normal'}>
+                    <div className="mp-visit-num">{visitNum ?? '·'}</div>
                     <div className="mp-visit-info">
                       <div className="mp-visit-date">{fmtDate(v.visited_at)}</div>
                       {v.court && <div className="mp-visit-court">Cancha {v.court}</div>}
                     </div>
-                    {promo === 'free'   && <div className="mp-promo-tag tag-free">GRATIS</div>}
-                    {promo === 'silver' && <div className="mp-promo-tag tag-silver">SILVER</div>}
+                    {premio === 'gratis' && <div className="mp-promo-tag tag-free">GRATIS</div>}
+                    {premio === 'silver' && <div className="mp-promo-tag tag-silver">SILVER</div>}
                   </div>
                 );
               })}
@@ -1653,7 +1659,7 @@ function SettingsScreen({ onLogout }) {
         <div className="set-row"><span>Club</span><strong>{cfg.club?.name||'Padel Park'} · {cfg.club?.city||''}</strong></div>
       </div>
       <div className="set-card">
-        <div className="set-row"><span>Versión</span><strong>v3.3 · base del POS</strong></div>
+        <div className="set-row"><span>Versión</span><strong>v3.4 · base del POS</strong></div>
       </div>
       <h3 style={{marginTop:22}}>Instrucciones</h3>
       <ol className="steps-list">
@@ -1683,7 +1689,7 @@ function AdminEasterEgg({ onClose }) {
           <img src="assets/logo-navy.jpg" alt="PP" />
         </div>
         <div className="ee-name">Padel Park Gran Jardín</div>
-        <div className="ee-version">v3.3 · Panel de Recepción</div>
+        <div className="ee-version">v3.4 · Panel de Recepción</div>
         <div className="ee-divider" />
         <div className="ee-made">Desarrollado por</div>
         <div className="ee-creator">ProcesaLab</div>

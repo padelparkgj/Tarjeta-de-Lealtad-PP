@@ -108,32 +108,75 @@
 
     // ── Visits table ──────────────────────────────────────────
     // Sin member_name: el nombre está en members, y quién la registró lo pone la base.
-    logVisit(memberId, court) {
-      return sb.from('visits').insert({
-        member_id: memberId,
-        court:     court || '01',
+    // Sin `court` (v3.4): nadie sabe en qué cancha fue, la cancha vive en la reserva del POS.
+    // ⚠️ La columna todavía tiene default '01', así que la base la sigue llenando: quitarlo es
+    // SQL de Edgar (docs/PROMPTS.md). Devuelve el id: lo que fue esta visita se busca por él.
+    logVisit(memberId) {
+      return sb.from('visits').insert({ member_id: memberId }).select('id').single();
+    },
+    // Todas las visitas de un socio, contadas EN LA BASE (count, sin traer filas). Es el total
+    // del historial y del nivel (Bronce…Leyenda); NO es la promoción, que es promocionDe.
+    // Devuelve { data: número, error }: una lectura caída no es «0 visitas».
+    async contarVisitas(memberId) {
+      const r = await sb.from('visits').select('id', { count: 'exact', head: true }).eq('member_id', memberId);
+      if (r.error) return { data: null, error: r.error };
+      if (r.count === null) return { data: null, error: new Error('la base no devolvió el conteo de visitas') };
+      return { data: r.count, error: null };
+    },
+    // ── La promoción: la calcula la base, y solo la base ───────
+    // promocion_de(p_member_id) es la misma función que usa el POS (v3.4, 5 de octubre de 2026;
+    // antes esta app tenía su propia copia del ciclo, borrada en la v3.4). El jsonb llega TAL CUAL; las
+    // pantallas leen sus llaves y no calculan nada:
+    //   participa, vinculado_en, visitas_cuentan,
+    //   visitas[]          { id, numero, dia, posicion, premio, regla_id }  — solo las que cuentan
+    //   ciclo_actual       { regla_id, ciclo, visita_silver, visita_gratis, hechas }
+    //   siguiente          { numero, posicion, premio, regla_id }
+    //   proxima_con_premio { numero, posicion, premio } | null
+    // premio: 'silver' | 'gratis' | null. Si no participa, `participa: false` y lo demás no se lee.
+    // Personal consulta a cualquiera; un socio, solo la suya (42501 si no). Sin regla que rija el
+    // día de una visita, la base contesta P0001: eso no es una lectura caída, es un dato que falta.
+    promocionDe(memberId) {
+      return sb.rpc('promocion_de', { p_member_id: memberId });
+    },
+    // Los sellos del ciclo en curso, leídos de ciclo_actual: cuántos, cuáles llevan premio y
+    // cuántos van llenos. Con la regla que diga la base, no con un 7 escrito aquí.
+    puntosDelCiclo(c) {
+      return Array.from({ length: c.ciclo }, (_, k) => {
+        const i = k + 1;
+        return { i, lleno: i <= c.hechas, premio: i === c.visita_gratis ? 'gratis' : i === c.visita_silver ? 'silver' : null };
       });
     },
-    // Las visitas de un socio para la promoción, contadas EN LA BASE (count, sin traer filas):
-    //   total   — todas las registradas;
-    //   cuentan — las que hay desde members.vinculado_en, que es cuando se registró en la app y
-    //             lo que abre la promoción (Edgar, 25 de septiembre de 2026). `null` si no
-    //             participa: el socio dado de alta en el mostrador, sin vinculado_en. No es 0.
-    // Es la misma cuenta que hace el POS (services/socios, visitasDe). Hasta la v3.2 esta app
-    // contaba todas, y el mismo socio podía ver «7.ª gratis» aquí y otra cosa en el mostrador.
-    // Devuelve { data, error } como supabase-js: una lectura caída no es «0 visitas».
-    async contarVisitas(member) {
-      const contar = () => sb.from('visits').select('id', { count: 'exact', head: true }).eq('member_id', member.member_id);
-      const [todas, desde] = await Promise.all([
-        contar(),
-        member.vinculado_en ? contar().gte('visited_at', member.vinculado_en) : Promise.resolve(null),
-      ]);
-      const error = todas.error || (desde && desde.error);
-      if (error) return { data: null, error };
-      if (todas.count === null || (desde && desde.count === null)) {
-        return { data: null, error: new Error('la base no devolvió el conteo de visitas') };
+    // Cada visita que cuenta, por su id: { numero, premio }. Las de antes de vinculado_en no
+    // están, y en el historial no llevan número ni premio.
+    porVisita(promo) {
+      return new Map((promo.participa ? promo.visitas : []).map(v => [v.id, v]));
+    },
+    // Lo que se dice cuando promocionDe no contestó. Nunca un ciclo en cero: un cero inventado
+    // se lee como «no tienes nada acumulado».
+    faltaPromocion(error) {
+      if (error && error.code === 'P0001') {
+        const dia = (error.message || '').match(/\d{4}-\d{2}-\d{2}/);
+        return `No se puede calcular la promoción: falta la regla de visitas${dia ? ` del ${dia[0]}` : ''}. Avisa en el mostrador.`;
       }
-      return { data: { total: todas.count, cuentan: desde ? desde.count : null }, error: null };
+      return 'No se pudo leer la promoción. Revisa la conexión y vuelve a abrir esta pantalla.';
+    },
+    // La línea que explica por qué el total y lo que cuenta difieren, o `null` si no difieren.
+    // Las dos cifras y la fecha vienen de la base: `total` de contarVisitas (null si no se pudo
+    // leer), lo demás de promocionDe. Sin culpar a nadie: es la regla.
+    lineaConteo(total, promo, persona) {
+      const tu = persona === 'tu';
+      if (!promo.participa) {
+        return tu
+          ? 'Tu promoción empieza a contar cuando tu cuenta quede registrada en la app. Tus visitas se guardan igual.'
+          : 'Aún no participa en la promoción: se dio de alta en el mostrador y no se ha registrado en la app. Sus visitas se guardan igual.';
+      }
+      const cuentan = promo.visitas_cuentan;
+      if (total === null || cuentan === total) return null;
+      const fecha = promo.vinculado_en ? new Date(promo.vinculado_en).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+      const antes = total - cuentan;
+      return (tu ? `Llevas ${total} visitas. Para la promoción cuentan ${cuentan}: las de desde que te registraste en la app`
+                 : `${total} visitas en total. Para la promoción cuentan ${cuentan}: las de desde que se registró en la app`)
+        + (fecha ? `, el ${fecha}` : '') + `. ${antes === 1 ? 'La de antes queda' : `Las ${antes} de antes quedan`} en el historial.`;
     },
     getMemberVisits(memberId) {
       return sb.from('visits')

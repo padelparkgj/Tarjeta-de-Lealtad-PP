@@ -5,11 +5,19 @@ const { useState, useEffect, useMemo, useRef, useCallback } = React;
 // Aquí vivía memberIdFrom, que la inventaba en el navegador con 9,000 valores por
 // año y sin nada que impidiera repetir. No se vuelve a poner.
 
-// La regla de visitas (4.ª Silver, 7.ª gratis, ciclo de 7) vive en regla-visitas.js,
-// la misma que usa el panel de recepción. Aquí no se calcula ningún premio.
-const { reglaVisitas, premioDeVisita, lineaConteo, CICLO } = window.PPRegla;
-const PUNTOS_CICLO = Array.from({ length: CICLO }, (_, i) => i + 1);
+// La promoción la calcula la base (promocion_de, la misma del POS y del panel) y llega por
+// PPSb.promocionDe: aquí se pinta lo que dice, sin contar ni recorrer nada (v3.4).
 const nesima = n => `${n}.ª`;
+const PREMIO_TXT = { silver: 'precio Silver', gratis: 'cancha gratis' };
+
+// La promoción del socio y su total, leídos juntos: { total, promo, error }. `promo` es el jsonb
+// de promocion_de tal cual, o null con su `error`; `total` es null si no se pudo contar.
+async function leerPromocion(memberId) {
+  const [pRes, cRes] = await Promise.all([window.PPSb.promocionDe(memberId), window.PPSb.contarVisitas(memberId)]);
+  if (pRes.error) console.error('[promocionDe]', pRes.error);
+  if (cRes.error) console.error('[contarVisitas]', cRes.error);
+  return { promo: pRes.error ? null : pRes.data, error: pRes.error || null, total: cRes.error ? null : cRes.data };
+}
 
 // El nivel del socio por visitas acumuladas. Nombres en español desde el 26 de septiembre
 // de 2026, para que «Silver» nombre solo la tarifa; los umbrales son los de siempre.
@@ -202,7 +210,7 @@ function EasterEgg({ onClose }) {
           <img src="assets/logo-navy.jpg" alt="PP" />
         </div>
         <div className="ee-name">Padel Park Gran Jardín</div>
-        <div className="ee-version">v3.3 · Tarjeta de Lealtad</div>
+        <div className="ee-version">v3.4 · Tarjeta de Lealtad</div>
         <div className="ee-divider" />
         <div className="ee-made">Desarrollado por</div>
         <div className="ee-creator">ProcesaLab</div>
@@ -836,9 +844,16 @@ function QrModal({ member, onClose }) {
 // ──────────────────────────────────────────────────────────────
 // Wallet Card — Apple Wallet-style downloadable image
 // ──────────────────────────────────────────────────────────────
+// «Miembro desde»: la columna es members.joined_at. Hasta la v3.3 se leía member.joinedAt, que
+// no existe, y se pintaba «Invalid Date». Sin fecha, null: la fila pinta «—», no una fecha falsa.
+function miembroDesde(member) {
+  if (!member.joined_at) return null;
+  return new Date(member.joined_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
 function WalletCard({ member, qrSvg, innerRef, tier = TIER_INICIAL }) {
   const cfg = (typeof window !== 'undefined' && window.PPGJ_CONFIG) || {};
-  const since = new Date(member.joinedAt).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
+  const since = miembroDesde(member);
   return (
     <div ref={innerRef} className="wallet-card">
       <div className="wc-band">
@@ -868,7 +883,7 @@ function WalletCard({ member, qrSvg, innerRef, tier = TIER_INICIAL }) {
         </div>
         <div>
           <div className="wc-meta-lbl">Miembro desde</div>
-          <div className="wc-meta-val">{since}</div>
+          <div className="wc-meta-val" data-miembro-desde>{since || '—'}</div>
         </div>
       </div>
 
@@ -907,34 +922,29 @@ function CardScreen({ member, cardStyle, onOpenQr }) {
   const [downloading, setDownloading] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
 
-  // ── Las visitas, contadas en la base ──
-  // La promoción cuenta desde que se registró en la app (vinculado_en), como el POS: el total
-  // y lo que cuenta pueden diferir, y entonces se enseñan las dos cifras con su explicación.
-  // Una lectura caída no es «0 visitas»: se dice que no se pudo leer.
-  const [conteo, setConteo] = useState(null);          // { total, cuentan } | null
-  const [conteoFallo, setConteoFallo] = useState(false);
+  // ── La promoción, de la base ──
+  // promocion_de dice lo que cuenta (desde vinculado_en), en qué ciclo va y qué le toca; el total
+  // de visitas, contado aparte, es el del nivel. Una lectura caída no es «0 visitas» ni un ciclo
+  // en cero: se dice que no se pudo leer.
+  const [lectura, setLectura] = useState(null);        // { total, promo, error } | null mientras carga
 
   useEffect(() => {
-    if (!window.PPSb || !member.member_id) { setConteoFallo(true); return; }
+    if (!window.PPSb || !member.member_id) { setLectura({ total: null, promo: null, error: null }); return; }
     let vivo = true;
-    window.PPSb.contarVisitas(member).then(({ data, error }) => {
-      if (!vivo) return;
-      if (error) { console.error('[contarVisitas]', error); setConteoFallo(true); return; }
-      setConteo(data);
-    });
+    leerPromocion(member.member_id).then(l => { if (vivo) setLectura(l); });
     return () => { vivo = false; };
-  }, [member.member_id, member.vinculado_en]);
+  }, [member.member_id]);
 
-  const totalVisits = conteo ? conteo.total : 0;
-  const participa   = conteo !== null && conteo.cuentan !== null;
-  const enPromo     = participa ? conteo.cuentan : 0;  // lo que decide los premios
-  const sigue       = reglaVisitas(enPromo);            // lo que toca en la siguiente
-  const nextPromo   = participa ? sigue.premio : null;
+  const promo       = lectura && lectura.promo;
+  const promoFallo  = !!(lectura && !promo);
+  const totalVisits = lectura ? lectura.total : null;
+  const participa   = !!(promo && promo.participa);
+  const nextPromo   = participa ? promo.siguiente.premio : null;   // lo que toca en la siguiente
+  const prox        = participa ? promo.proxima_con_premio : null;
   const birthday    = isBirthdayMonth(member.birth);
-  const cycleFilled = participa ? sigue.enCiclo : 0;
   // El nivel (Bronce, Plata…) sigue siendo por visitas acumuladas: es otra cosa que la promoción.
-  const tier        = conteo ? tierFor(totalVisits) : TIER_INICIAL;
-  const explicacion = conteo ? lineaConteo(conteo, member.vinculado_en, 'tu') : null;
+  const tier        = totalVisits !== null ? tierFor(totalVisits) : TIER_INICIAL;
+  const explicacion = promo ? window.PPSb.lineaConteo(totalVisits, promo, 'tu') : null;
 
   async function downloadWallet() {
     if (!walletRef.current || !window.htmlToImage) return;
@@ -991,46 +1001,44 @@ function CardScreen({ member, cardStyle, onOpenQr }) {
         </div>
 
         {/* ── Visits & promotions ── */}
-        {conteoFallo && (
-          <div className="visits-block" data-visitas="no-se">
-            <div className="vb-next">No se pudieron leer tus visitas. Revisa tu conexión y vuelve a abrir la app.</div>
+        {promoFallo && (
+          <div className="visits-block" data-promocion="no-se">
+            <div className="vb-next">{window.PPSb.faltaPromocion(lectura.error)}</div>
           </div>
         )}
-        {conteo && (
-          <div className="visits-block" data-visitas={totalVisits} data-cuentan={participa ? enPromo : 'no-participa'} data-siguiente={nextPromo || 'normal'}>
+        {promo && (
+          <div className="visits-block" data-visitas={totalVisits ?? 'no-se'} data-cuentan={participa ? promo.visitas_cuentan : 'no-participa'} data-siguiente={nextPromo || 'normal'}>
             <div className="vb-top">
               <div className="vb-count">
-                <span className="vb-n">{participa ? enPromo : totalVisits}</span>
-                <span className="vb-label">{participa && enPromo !== totalVisits ? 'visitas en la promoción' : 'visitas'}</span>
+                <span className="vb-n">{participa ? promo.visitas_cuentan : (totalVisits ?? '—')}</span>
+                <span className="vb-label">{participa && promo.visitas_cuentan !== totalVisits ? 'visitas en la promoción' : 'visitas'}</span>
               </div>
-              <div className="vb-cycle">
-                {PUNTOS_CICLO.map(i => {
-                  const p = reglaVisitas(i - 1).premio;
-                  return (
-                    <div key={i}
-                      className={`vdot ${i<=cycleFilled?'filled':''} ${p==='silver'?'mark-s':''} ${p==='free'?'mark-f':''}`}
+              {participa && (
+                <div className="vb-cycle" data-ciclo-hechas={promo.ciclo_actual.hechas}>
+                  {window.PPSb.puntosDelCiclo(promo.ciclo_actual).map(d => (
+                    <div key={d.i}
+                      className={`vdot ${d.lleno?'filled':''} ${d.premio==='silver'?'mark-s':''} ${d.premio==='gratis'?'mark-f':''}`}
                     />
-                  );
-                })}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {nextPromo === 'free' && (
+            {nextPromo === 'gratis' && (
               <div className="vb-milestone milestone-free">
                 🎉 <strong>¡Cancha GRATIS desbloqueada!</strong><br/>
-                <span>Tu siguiente visita es completamente gratis</span>
+                <span data-proxima={promo.siguiente.numero}>Tu siguiente visita, la {nesima(promo.siguiente.numero)}, es completamente gratis</span>
               </div>
             )}
             {nextPromo === 'silver' && (
               <div className="vb-milestone milestone-silver">
                 ⚡ <strong>¡Precio Silver desbloqueado!</strong><br/>
-                <span>Tu siguiente visita tiene tarifa preferencial</span>
+                <span data-proxima={promo.siguiente.numero}>Tu siguiente visita, la {nesima(promo.siguiente.numero)}, tiene tarifa preferencial</span>
               </div>
             )}
-            {participa && !nextPromo && enPromo > 0 && (
-              <div className="vb-next">
-                Tu {nesima(enPromo + sigue.hastaSilver)} visita: precio Silver ·{' '}
-                tu {nesima(enPromo + sigue.hastaGratis)}: cancha gratis
+            {participa && !nextPromo && prox && (
+              <div className="vb-next" data-proxima={prox.numero}>
+                Tu siguiente es la {nesima(promo.siguiente.numero)} visita · tu {nesima(prox.numero)}: {PREMIO_TXT[prox.premio]}
               </div>
             )}
             {explicacion && <div className="vb-next" data-explicacion>{explicacion}</div>}
@@ -1122,30 +1130,30 @@ function RewardsScreen() {
 // ──────────────────────────────────────────────────────────────
 function ProfileScreen({ member, onReset }) {
   const [visits,  setVisits]  = useState([]);
-  const [conteo,  setConteo]  = useState(null);   // { total, cuentan }
+  const [lectura, setLectura] = useState(null);   // { total, promo, error } de leerPromocion
   const [loading, setLoading] = useState(true);
   const [fallo,   setFallo]   = useState(false);
 
   useEffect(() => {
     if (!window.PPSb || !member.member_id) { setFallo(true); setLoading(false); return; }
     let vivo = true;
-    Promise.all([window.PPSb.getMemberVisits(member.member_id), window.PPSb.contarVisitas(member)])
-      .then(([vRes, cRes]) => {
+    Promise.all([window.PPSb.getMemberVisits(member.member_id), leerPromocion(member.member_id)])
+      .then(([vRes, l]) => {
         if (!vivo) return;
-        const error = vRes.error || cRes.error;
-        if (error) { console.error('[Mis visitas]', error); setFallo(true); }
-        else { setVisits(vRes.data || []); setConteo(cRes.data); }
+        if (vRes.error) { console.error('[Mis visitas]', vRes.error); setFallo(true); }
+        else { setVisits(vRes.data || []); setLectura(l); }
         setLoading(false);
       });
     return () => { vivo = false; };
-  }, [member.member_id, member.vinculado_en]);
+  }, [member.member_id]);
 
-  const totalVisits = conteo ? conteo.total : visits.length;
-  // La lista viene de la más reciente a la más vieja, y las que cuentan (contadas por la base,
-  // desde vinculado_en) son las primeras `cuentan`: ésas llevan su número de promoción. Las de
-  // antes de registrarse no llevan número ni premio.
-  const cuentan = conteo && conteo.cuentan !== null ? conteo.cuentan : 0;
-  const explicacion = conteo ? lineaConteo(conteo, member.vinculado_en, 'tu') : null;
+  const totalVisits = lectura && lectura.total !== null ? lectura.total : visits.length;
+  // El número y el premio de cada visita los dio la base (promocion_de → visitas, por id). Las de
+  // antes de registrarse no están ahí y no llevan número ni premio. Sin la promoción leída,
+  // ninguna lleva número, y se dice por qué.
+  const promo = lectura && lectura.promo;
+  const deVisita = promo ? window.PPSb.porVisita(promo) : new Map();
+  const explicacion = promo ? window.PPSb.lineaConteo(lectura.total, promo, 'tu') : null;
 
   return (
     <div className="scroll fade-in">
@@ -1167,7 +1175,7 @@ function ProfileScreen({ member, onReset }) {
             ['Juego', member.level],
             ['Teléfono', member.phone],
             ['Cumpleaños', member.birth ? new Date(member.birth).toLocaleDateString('es-MX', {day:'2-digit', month:'short'}) : '—'],
-            ['Miembro desde', new Date(member.joinedAt).toLocaleDateString('es-MX', {day:'2-digit', month:'short', year:'numeric'})],
+            ['Miembro desde', miembroDesde(member)],
           ].map(([k,v]) => (
             <div key={k} style={{display:'flex', justifyContent:'space-between', padding:'10px 0', borderTop:'1px solid var(--line)', fontSize:13}}>
               <span style={{color:'rgba(14,29,87,0.6)'}}>{k}</span>
@@ -1184,19 +1192,20 @@ function ProfileScreen({ member, onReset }) {
             <div className="ph-empty">Aún no tienes visitas registradas.</div>
           )}
           {!loading && !fallo && explicacion && <div className="ph-empty" data-explicacion>{explicacion}</div>}
-          {!fallo && visits.map((v, i) => {
-            const cuenta   = i < cuentan;
-            const visitNum = cuenta ? cuentan - i : null;
-            const promo    = cuenta ? premioDeVisita(visitNum) : null;
+          {!loading && !fallo && lectura && !promo && <div className="ph-empty" data-promocion="no-se">{window.PPSb.faltaPromocion(lectura.error)}</div>}
+          {!fallo && visits.map(v => {
+            const enPromo  = deVisita.get(v.id) || null;
+            const visitNum = enPromo ? enPromo.numero : null;
+            const premio   = enPromo ? enPromo.premio : null;
             return (
-              <div key={v.id} className="ph-row" data-visita={visitNum ?? 'no-cuenta'} data-premio={promo || 'normal'}>
-                <div className="ph-num">{cuenta ? visitNum : '·'}</div>
+              <div key={v.id} className="ph-row" data-visita={visitNum ?? 'no-cuenta'} data-premio={premio || 'normal'}>
+                <div className="ph-num">{visitNum ?? '·'}</div>
                 <div className="ph-info">
                   <div className="ph-date">{fmtDate(v.visited_at)}</div>
                   {v.court && <div className="ph-court">Cancha {v.court}</div>}
                 </div>
-                {promo === 'free'   && <div className="ph-tag tag-free">GRATIS</div>}
-                {promo === 'silver' && <div className="ph-tag tag-silver">SILVER</div>}
+                {premio === 'gratis' && <div className="ph-tag tag-free">GRATIS</div>}
+                {premio === 'silver' && <div className="ph-tag tag-silver">SILVER</div>}
               </div>
             );
           })}
