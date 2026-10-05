@@ -16,7 +16,7 @@ en `docs/BITACORA.md`.
 
 ## La promoción
 
-- 🕐 **La pantalla de Beneficios escribe la regla a mano**: «4.ª visita», «7.ª visita», «ciclos de
+- 🕐 **La bienvenida y la pantalla de Beneficios escriben la regla a mano**: «4.ª visita», «7.ª visita», «ciclos de
   7» (`Welcome` y `RewardsScreen`, `app.jsx`). No calculan nada —es texto—, pero si Edgar programa otra regla en
   `reglas_promocion`, la tarjeta y el panel la siguen y esas dos pantallas no. Leerla de la base es una
   pieza aparte.
