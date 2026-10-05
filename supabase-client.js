@@ -138,6 +138,25 @@
     promocionDe(memberId) {
       return sb.rpc('promocion_de', { p_member_id: memberId });
     },
+    // La regla en vigor HOY (hoy_negocio()), para los textos generales: la bienvenida y
+    // Beneficios (v3.5). regla_vigente() no recibe argumentos, la ejecutan anon y authenticated
+    // —funciona sin sesión— y devuelve UNA fila { ciclo, visita_silver, visita_gratis,
+    // vigente_desde }, que PostgREST entrega como arreglo: `.single()` la vuelve objeto, y cero
+    // filas es un error, no una regla vacía.
+    // ⚠️ No es lo que le toca a un socio: un socio a medio ciclo conserva la regla con la que lo
+    // empezó. Su tarjeta, el panel y la visita registrada leen promocionDe → ciclo_actual.
+    // Si falla, la pantalla no promete números: dice que pregunten en recepción.
+    reglaVigente() {
+      return sb.rpc('regla_vigente').single();
+    },
+    // Una fecha SIN hora de la base ('YYYY-MM-DD', una columna `date`) como fecha local de ese
+    // día. `new Date('1990-03-29')` la lee como medianoche UTC, que en el club es el 28: por eso
+    // el cumpleaños salía un día antes en el perfil. Se separan año, mes y día; no se suman horas.
+    // Devuelve null si el texto no es una fecha: no se inventa un día.
+    fechaSinHora(texto) {
+      const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(texto || '');
+      return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
+    },
     // Los sellos del ciclo en curso, leídos de ciclo_actual: cuántos, cuáles llevan premio y
     // cuántos van llenos. Con la regla que diga la base, no con un 7 escrito aquí.
     puntosDelCiclo(c) {

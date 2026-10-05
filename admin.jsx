@@ -680,7 +680,7 @@ function MemberProfileModal({ memberId, memberName: fallbackName, onClose }) {
     ? { gratis: promo.visitas.filter(v => v.premio === 'gratis').length, silver: promo.visitas.filter(v => v.premio === 'silver').length }
     : null;
   const explicacion  = promo ? window.PPSb.lineaConteo(totalVisits, promo, 'el') : null;
-  const birth  = member?.birth    ? new Date(member.birth + 'T00:00:00').toLocaleDateString('es-MX',{day:'2-digit',month:'short'}) : null;
+  const birth  = window.PPSb.fechaSinHora(member?.birth)?.toLocaleDateString('es-MX',{day:'2-digit',month:'short'}) || null;
   const joined = member?.joined_at ? new Date(member.joined_at).toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}) : null;
 
   return (
@@ -1659,7 +1659,7 @@ function SettingsScreen({ onLogout }) {
         <div className="set-row"><span>Club</span><strong>{cfg.club?.name||'Padel Park'} · {cfg.club?.city||''}</strong></div>
       </div>
       <div className="set-card">
-        <div className="set-row"><span>Versión</span><strong>v3.4 · base del POS</strong></div>
+        <div className="set-row"><span>Versión</span><strong>v3.5 · base del POS</strong></div>
       </div>
       <h3 style={{marginTop:22}}>Instrucciones</h3>
       <ol className="steps-list">
@@ -1689,7 +1689,7 @@ function AdminEasterEgg({ onClose }) {
           <img src="assets/logo-navy.jpg" alt="PP" />
         </div>
         <div className="ee-name">Padel Park Gran Jardín</div>
-        <div className="ee-version">v3.4 · Panel de Recepción</div>
+        <div className="ee-version">v3.5 · Panel de Recepción</div>
         <div className="ee-divider" />
         <div className="ee-made">Desarrollado por</div>
         <div className="ee-creator">ProcesaLab</div>

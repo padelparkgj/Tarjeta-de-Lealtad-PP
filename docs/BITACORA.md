@@ -3,6 +3,52 @@
 Qué se hizo y qué se midió, con fecha. Las reglas vigentes están en `CLAUDE.md`; lo pendiente, en
 `docs/PROMPTS.md`. Las entradas anteriores a esta viven en los mensajes de commit y en `PRUEBAS.md`.
 
+## v3.5 · 5 de octubre de 2026 — los textos de la regla leen la regla
+
+**El porqué.** La bienvenida y Beneficios escribían la regla a mano (ciclo de 7, 4.ª Silver, 7.ª
+gratis). Con la regla programable desde el POS, el día que Edgar la cambie esas pantallas
+seguirían prometiendo la vieja. Edgar creó `regla_vigente()` en la base del POS.
+
+**El contrato, contra la base** (llamada real, sin sesión, solo la clave publicable): `200` con
+`[{"ciclo":7,"visita_silver":4,"visita_gratis":7,"vigente_desde":"2000-01-01"}]`, lo mismo por
+POST y por GET; con un argumento, `404 PGRST202`. **Coincide con lo que dijo Edgar**, con un
+matiz de forma: llega como **arreglo de una fila**, no como objeto; la app pide `.single()`.
+
+**El inventario, antes.** Con un `grep -rnE` de ordinales, «ciclo(s) de N», «N visitas», «visita
+N», `% N`, Silver y gratis sobre todo `.html`, `.jsx`, `.js` y `.json` (58 líneas, casi todas
+etiquetas sin número), la regla escrita estaba en tres sitios de `app.jsx`: la tarjeta «Silver y
+gratis» de la bienvenida, las dos tarjetas de Beneficios (título, texto y etiqueta `VISITA 4` /
+`VISITA 7`) y la nota «¿Cómo funciona el conteo?». `Landing Page.html` no la menciona. **Después,
+la misma búsqueda**: ningún número de visita fuera de dos comentarios.
+
+**El cambio.** Los tres textos se arman con `regla_vigente()` (`useReglaVigente`). Si falla, dicen
+«Pregunta en recepción por la promoción vigente.»: ningún 4 ni 7 de respaldo. La tarjeta del socio,
+el panel y la visita registrada siguen en `promocion_de` → `ciclo_actual`: un socio a medio ciclo
+lo termina con la regla con la que lo empezó, y Beneficios ahora lo dice.
+
+**La prueba, en el navegador** (Chrome por Playwright, la carpeta servida en local):
+
+| | Bienvenida (sin sesión) | Beneficios |
+|---|---|---|
+| Regla real | «En cada ciclo de 7 visitas, la 4.ª sale a precio Silver y la 7.ª es gratis.» | «Precio Silver en la 4.ª visita · VISITA 4 · … la 4.ª, 11.ª, 18.ª…» y «Cancha gratis en la 7.ª visita · VISITA 7 · … la 7.ª, 14.ª, 21.ª…» |
+| Falsa interceptada (10, 5, 10) | «En cada ciclo de 10 visitas, la 5.ª sale a precio Silver y la 10.ª es gratis.» | «Precio Silver en la 5.ª visita · VISITA 5 · … la 5.ª, 15.ª, 25.ª…» y «Cancha gratis en la 10.ª visita · VISITA 10 · … la 10.ª, 20.ª, 30.ª…» |
+| 503 interceptado | «Pregunta en recepción por la promoción vigente.» | una sola tarjeta «Promoción por visitas · Pregunta en recepción…», y la nota igual |
+
+Con la regla falsa, la tarjeta del socio siguió diciendo «la 7.ª, es completamente gratis»: es
+`promocion_de`, y no debía moverse. La bienvenida, de verdad sin sesión: la llamada salió con la
+clave publicable como bearer, `200`, sin interceptar y sin ninguna sesión guardada en el
+navegador. **Beneficios no se recorrió como lo vería un socio**: es una pestaña de la app con sesión
+y ninguna cuenta de prueba es socio, así que, como en la v3.4, entró la cuenta de personal con la
+lectura de «mi ficha» sustituida por la ficha real de PP-26-5917.
+
+**El cumpleaños.** `new Date('YYYY-MM-DD')` es medianoche UTC, el día anterior en el club. Un solo
+ayudante, `PPSb.fechaSinHora`, separa año, mes y día; lo usan el perfil y el panel (que sumaba
+`T00:00:00` a mano). Es el único valor de solo fecha que se pinta: `event_date` y `expires_at`
+son instantes, y `vigente_desde` no se enseña. Mismo socio (`birth` = 29 de marzo): **«29-mar»
+en su perfil y «29-mar» en el panel** (antes, «28-mar» y «29-mar»).
+
+**El contraste**, otra vez: 12 socios, 12 coinciden. Este cambio no lo movió, que era lo esperado.
+
 ## v3.4 · 5 de octubre de 2026 — el ciclo de visitas, solo en la base
 
 **El porqué.** El ciclo de visitas existía dos veces: en la base, `promocion_de`, que usa el POS

@@ -10,6 +10,41 @@ const { useState, useEffect, useMemo, useRef, useCallback } = React;
 const nesima = n => `${n}.ª`;
 const PREMIO_TXT = { silver: 'precio Silver', gratis: 'cancha gratis' };
 
+// ── La regla vigente, para los textos generales (v3.5) ──
+// La bienvenida y Beneficios dicen la regla que aplica HOY a quien empiece un ciclo, leída de
+// regla_vigente() —también sin sesión—. No es lo que le toca a un socio a medio ciclo: eso lo
+// dice promocion_de. Si la lectura falla, NO se cae a unos números escritos aquí: se dice que
+// pregunten en recepción. { estado: 'cargando' | 'listo' | 'fallo', regla }
+const SIN_REGLA = 'Pregunta en recepción por la promoción vigente.';
+function useReglaVigente() {
+  const [lectura, setLectura] = useState({ estado: 'cargando', regla: null });
+  useEffect(() => {
+    if (!window.PPSb) { setLectura({ estado: 'fallo', regla: null }); return; }
+    let vivo = true;
+    window.PPSb.reglaVigente().then(({ data, error }) => {
+      if (!vivo) return;
+      // Una fila sin ciclo no es una regla: se trata como lectura fallida, no se rellena.
+      if (error || !data || !Number.isInteger(data.ciclo)) {
+        console.error('[reglaVigente]', error || data);
+        setLectura({ estado: 'fallo', regla: null });
+        return;
+      }
+      setLectura({ estado: 'listo', regla: data });
+    });
+    return () => { vivo = false; };
+  }, []);
+  return lectura;
+}
+// La regla en una frase, con los números de la base. Un premio sin posición (null) no se nombra.
+function reglaEnFrase(r) {
+  const partes = [];
+  if (r.visita_silver) partes.push(`la ${nesima(r.visita_silver)} sale a precio Silver`);
+  if (r.visita_gratis) partes.push(`la ${nesima(r.visita_gratis)} es gratis`);
+  return `En cada ciclo de ${r.ciclo} visitas${partes.length ? `, ${partes.join(' y ')}` : ''}.`;
+}
+// Las tres primeras veces que cae esa posición: con 4 y ciclo 7, «4.ª, 11.ª, 18.ª».
+const tresVeces = (pos, ciclo) => [0, 1, 2].map(k => nesima(pos + k * ciclo)).join(', ');
+
 // La promoción del socio y su total, leídos juntos: { total, promo, error }. `promo` es el jsonb
 // de promocion_de tal cual, o null con su `error`; `total` es null si no se pudo contar.
 async function leerPromocion(memberId) {
@@ -210,7 +245,7 @@ function EasterEgg({ onClose }) {
           <img src="assets/logo-navy.jpg" alt="PP" />
         </div>
         <div className="ee-name">Padel Park Gran Jardín</div>
-        <div className="ee-version">v3.4 · Tarjeta de Lealtad</div>
+        <div className="ee-version">v3.5 · Tarjeta de Lealtad</div>
         <div className="ee-divider" />
         <div className="ee-made">Desarrollado por</div>
         <div className="ee-creator">ProcesaLab</div>
@@ -415,6 +450,7 @@ function InstallPrompt() {
 // Welcome screen
 // ──────────────────────────────────────────────────────────────
 function Welcome({ onStart, onLogin }) {
+  const { estado, regla } = useReglaVigente();   // sin sesión: regla_vigente la ejecuta anon
   return (
     <div className="scroll fade-in">
       <TopBar right="LEÓN ·" />
@@ -458,7 +494,9 @@ function Welcome({ onStart, onLogin }) {
         <div className="perk">
           <div className="icon"><Ic.trophy /></div>
           <div className="label">Silver y gratis</div>
-          <div className="sub">En cada ciclo de 7 visitas, la 4.ª sale a precio Silver y la 7.ª es gratis.</div>
+          <div className="sub" data-regla={estado}>
+            {estado === 'listo' ? reglaEnFrase(regla) : estado === 'fallo' ? SIN_REGLA : 'Consultando la promoción vigente…'}
+          </div>
         </div>
       </div>
 
@@ -1067,22 +1105,30 @@ function CardScreen({ member, cardStyle, onOpenQr }) {
 }
 
 // ──────────────────────────────────────────────────────────────
-// Rewards / Beneficios — static list, no visit dependency
+// Rewards / Beneficios — la regla de visitas sale de regla_vigente(); lo demás es fijo
 // ──────────────────────────────────────────────────────────────
 function RewardsScreen() {
+  const { estado, regla: r } = useReglaVigente();
+  // Las dos tarjetas de la promoción, con los números de la regla de hoy. Sin regla leída, una
+  // sola tarjeta que no promete números (ni mientras carga, ni si falló).
+  const promocion = estado !== 'listo'
+    ? [{ ic: 'gift', t: 'Promoción por visitas', s: estado === 'fallo' ? SIN_REGLA : 'Consultando la promoción vigente…', tag: null, regla: estado }]
+    : [
+        r.visita_silver && {
+          ic: 'bolt',
+          t: `Precio Silver en la ${nesima(r.visita_silver)} visita`,
+          s: `En cada ciclo de ${r.ciclo} visitas, la ${nesima(r.visita_silver)} sale a tarifa preferencial Silver: la ${tresVeces(r.visita_silver, r.ciclo)}…`,
+          tag: `VISITA ${r.visita_silver}`, regla: 'silver',
+        },
+        r.visita_gratis && {
+          ic: 'gift',
+          t: `Cancha gratis en la ${nesima(r.visita_gratis)} visita`,
+          s: `En cada ciclo de ${r.ciclo} visitas, la ${nesima(r.visita_gratis)} es completamente gratis: la ${tresVeces(r.visita_gratis, r.ciclo)}…`,
+          tag: `VISITA ${r.visita_gratis}`, regla: 'gratis',
+        },
+      ].filter(Boolean);
   const rewards = [
-    {
-      ic: 'bolt',
-      t: 'Precio Silver en la 4.ª visita',
-      s: 'En cada ciclo de 7 visitas, la 4.ª sale a tarifa preferencial Silver: la 4.ª, la 11.ª, la 18.ª…',
-      tag: 'VISITA 4',
-    },
-    {
-      ic: 'gift',
-      t: 'Cancha gratis en la 7.ª visita',
-      s: 'En cada ciclo de 7 visitas, la 7.ª es completamente gratis: la 7.ª, la 14.ª, la 21.ª…',
-      tag: 'VISITA 7',
-    },
+    ...promocion,
     {
       ic: 'trophy',
       t: 'Torneos y clínicas',
@@ -1103,7 +1149,7 @@ function RewardsScreen() {
         <h2>Beneficios del programa</h2>
         <div className="sub">Acumula visitas y desbloquea recompensas en Padel Park Gran Jardín.</div>
         {rewards.map((r, i) => (
-          <div key={i} className="benefit-card">
+          <div key={i} className="benefit-card" data-regla={r.regla}>
             <div className="bc-ic">{Ic[r.ic]({ style: { width: 22, height: 22 } })}</div>
             <div className="bc-body">
               <div className="bc-ttl">
@@ -1115,10 +1161,25 @@ function RewardsScreen() {
           </div>
         ))}
 
-        <div className="rewards-note">
+        <div className="rewards-note" data-regla={estado}>
           <div className="rn-title">¿Cómo funciona el conteo?</div>
-          <p>Tus visitas cuentan en <strong>ciclos de 7</strong>. La <strong>4.ª visita</strong> del ciclo sale a <strong>precio Silver</strong> y la <strong>7.ª</strong> es <strong>completamente gratis</strong>.</p>
-          <p>Todas las visitas cuentan, también la Silver y la gratis. Al completar la 7.ª, el ciclo vuelve a empezar desde cero: tus visitas Silver son la 4.ª, 11.ª, 18.ª… y las gratis, la 7.ª, 14.ª, 21.ª…</p>
+          {estado === 'listo' ? (
+            <>
+              <p>
+                Tus visitas cuentan en <strong>ciclos de {r.ciclo}</strong>.
+                {r.visita_silver && <> La <strong>{nesima(r.visita_silver)} visita</strong> del ciclo sale a <strong>precio Silver</strong>.</>}
+                {r.visita_gratis && <> La <strong>{nesima(r.visita_gratis)}</strong> es <strong>completamente gratis</strong>.</>}
+              </p>
+              <p>
+                Todas las visitas cuentan, también la Silver y la gratis. Al completar la {nesima(r.ciclo)}, el ciclo vuelve a empezar desde cero
+                {r.visita_silver && <>: tus visitas Silver son la {tresVeces(r.visita_silver, r.ciclo)}…</>}
+                {r.visita_gratis && <>{r.visita_silver ? ' y' : ':'} las gratis, la {tresVeces(r.visita_gratis, r.ciclo)}…</>}
+              </p>
+              <p>Si ya vas a medio ciclo, lo terminas con la regla con la que lo empezaste: tu tarjeta dice cuál.</p>
+            </>
+          ) : (
+            <p>{estado === 'fallo' ? SIN_REGLA : 'Consultando la promoción vigente…'}</p>
+          )}
         </div>
       </div>
     </div>
@@ -1174,7 +1235,7 @@ function ProfileScreen({ member, onReset }) {
             ['Socio', member.id],
             ['Juego', member.level],
             ['Teléfono', member.phone],
-            ['Cumpleaños', member.birth ? new Date(member.birth).toLocaleDateString('es-MX', {day:'2-digit', month:'short'}) : '—'],
+            ['Cumpleaños', window.PPSb.fechaSinHora(member.birth)?.toLocaleDateString('es-MX', {day:'2-digit', month:'short'}) || '—'],
             ['Miembro desde', miembroDesde(member)],
           ].map(([k,v]) => (
             <div key={k} style={{display:'flex', justifyContent:'space-between', padding:'10px 0', borderTop:'1px solid var(--line)', fontSize:13}}>

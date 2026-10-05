@@ -16,10 +16,11 @@ en `docs/BITACORA.md`.
 
 ## La promoción
 
-- 🕐 **La bienvenida y la pantalla de Beneficios escriben la regla a mano**: «4.ª visita», «7.ª visita», «ciclos de
-  7» (`Welcome` y `RewardsScreen`, `app.jsx`). No calculan nada —es texto—, pero si Edgar programa otra regla en
-  `reglas_promocion`, la tarjeta y el panel la siguen y esas dos pantallas no. Leerla de la base es una
-  pieza aparte.
+- ✅ ~~La bienvenida y Beneficios escribían la regla a mano~~: desde la v3.5 (5 de octubre de 2026) la
+  leen de `regla_vigente()`, y si falla dicen «Pregunta en recepción por la promoción vigente.», sin
+  números. ⚠️ **Beneficios se midió con la misma sustitución que la tarjeta** (la sesión de personal
+  con la ficha de un socio real): es una pestaña de la app con sesión, y ninguna cuenta de prueba
+  es socio. La bienvenida, sin sesión, es de verdad.
 - 🕐 **La tarjeta del socio y la pantalla de visita registrada se verificaron sin una cuenta de
   socio de prueba** (5 de octubre de 2026): ninguna de las dos cuentas de `.env.controles` tiene
   ficha, y registrar una visita escribe para siempre en la ficha de un socio de verdad. La tarjeta
@@ -34,8 +35,8 @@ en `docs/BITACORA.md`.
   pasa de 6 visitas. `scripts/contraste-promocion.mjs` dio 12 de 12, pero esos casos no los mide; la
   copia ya no existe, y el POS los midió por su lado con su SQL de comparación.
 
-## Visto al pasar, no tocado
+## Visto al pasar
 
-- **El cumpleaños sale un día antes en el perfil del socio**: `new Date('1990-03-29')` se lee como
-  medianoche UTC, que en el club es el día anterior. El panel le pega `T00:00:00` y lo pinta bien
-  (medido el 5 de octubre de 2026: el mismo socio, «29-mar» en el panel y «28-mar» en su perfil).
+- ✅ ~~El cumpleaños salía un día antes en el perfil del socio~~: desde la v3.5 toda fecha sin
+  hora pasa por `PPSb.fechaSinHora`, que separa año, mes y día. Medido el 5 de octubre de 2026: el
+  mismo socio, «29-mar» en su perfil y en el panel.
