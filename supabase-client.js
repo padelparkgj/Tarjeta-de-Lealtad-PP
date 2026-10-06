@@ -5,13 +5,16 @@
 // base vieja se absorben AQUÍ, para que las pantallas sigan recibiendo lo mismo:
 //
 //  · members.id ya no es el id de la cuenta: la cuenta vive en members.user_id.
-//  · visits, signups y tournament_pairs ya no copian el nombre: se lee de members
-//    por la llave foránea (member_id → members.member_id) y se devuelve como
-//    member_name / member_name_1 / member_name_2, que es lo que leen las pantallas.
-//  · El compañero de pareja es un socio (member_id_2) o un invitado (guest_name_2),
-//    nunca los dos: la base lo exige con un check.
+//  · visits y signups ya no copian el nombre: se lee de members por la llave foránea
+//    (member_id → members.member_id) y se devuelve como member_name, que es lo que leen
+//    las pantallas.
 //
 // ⚠️ La credencial (member_id) la genera la base. Nada aquí la inventa.
+//
+// ⚠️ **Nada de torneos** (v3.6, Edgar, 6 de octubre de 2026): los torneos de socios se juegan en
+// otra app, y aquí solo se anuncian como un aviso más. Nada lee ni escribe tournaments,
+// tournament_pairs ni tournament_matches. `signups` se queda: es la inscripción a cualquier
+// aviso con allow_signup (una clase, una clínica), no solo a torneos.
 (function () {
   const cfg = window.PPGJ_CONFIG;
   // El panel de recepción guarda su sesión aparte (Admin.html fija PP_AUTH_STORAGE_KEY):
@@ -21,28 +24,12 @@
   const sb  = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey, { auth });
 
   // ── Nombres leídos de members ─────────────────────────────
-  const SEL_PAREJA = '*, m1:members!member_id_1(name), m2:members!member_id_2(name)';
-
   const conNombre = (row) => {
     if (!row) return row;
     const { members, ...resto } = row;
     return { ...resto, member_name: members?.name || '' };
   };
-  const pareja = (row) => {
-    if (!row) return row;
-    const { m1, m2, ...resto } = row;
-    return {
-      ...resto,
-      member_name_1: m1?.name || '',
-      member_name_2: row.member_id_2 ? (m2?.name || '') : (row.guest_name_2 || null),
-    };
-  };
   const mapear = (fn) => (res) => (res.error || !res.data) ? res : { ...res, data: Array.isArray(res.data) ? res.data.map(fn) : fn(res.data) };
-
-  // El compañero va en una sola de las dos columnas (check de la base).
-  const companero = (memberId2, nombre2) => memberId2
-    ? { member_id_2: memberId2, guest_name_2: null }
-    : { member_id_2: null, guest_name_2: (nombre2 && nombre2.trim()) || null };
 
   window.PPSb = {
     // ── Auth ──────────────────────────────────────────────────
@@ -266,70 +253,6 @@
         .eq('announcement_id', announcementId)
         .order('signed_up_at')
         .then(mapear(conNombre));
-    },
-
-    // ── Tournaments (config) ───────────────────────────────────
-    getTournamentConfig(announcementId) {
-      return sb.from('tournaments').select('*').eq('announcement_id', announcementId).maybeSingle();
-    },
-    saveTournamentConfig(announcementId, data) {
-      return sb.from('tournaments').upsert({ announcement_id: announcementId, ...data }, { onConflict: 'announcement_id' });
-    },
-
-    // ── Tournament pairs (parejas) ──────────────────────────────
-    getTournamentPairs(announcementId) {
-      return sb.from('tournament_pairs').select(SEL_PAREJA).eq('announcement_id', announcementId).order('created_at')
-        .then(mapear(pareja));
-    },
-    assignPartner(pairId, memberId2) {
-      return sb.from('tournament_pairs').update(companero(memberId2, null)).eq('id', pairId);
-    },
-    upsertPair(announcementId, memberId1, memberId2, guestName2) {
-      return sb.from('tournament_pairs').upsert({
-        announcement_id: announcementId, member_id_1: memberId1,
-        ...companero(memberId2, guestName2),
-      }, { onConflict: 'announcement_id,member_id_1' });
-    },
-    unassignPartner(pairId) {
-      return sb.from('tournament_pairs').update({ member_id_2: null, guest_name_2: null }).eq('id', pairId);
-    },
-
-    // ── Tournament matches (rol de juego + resultados) ──────────
-    async saveTournamentSchedule(announcementId, matches) {
-      const del = await sb.from('tournament_matches').delete().eq('announcement_id', announcementId);
-      if (del.error) return del;
-      return sb.from('tournament_matches').insert(matches.map(m => ({ announcement_id: announcementId, ...m })));
-    },
-    getTournamentMatches(announcementId) {
-      return sb.from('tournament_matches')
-        .select(`*, pair_a:tournament_pairs!pair_a_id(${SEL_PAREJA}), pair_b:tournament_pairs!pair_b_id(${SEL_PAREJA})`)
-        .eq('announcement_id', announcementId)
-        .order('match_start')
-        .then(mapear(m => ({ ...m, pair_a: pareja(m.pair_a), pair_b: pareja(m.pair_b) })));
-    },
-    recordMatchWinner(matchId, winnerPairId) {
-      return sb.from('tournament_matches').update({ status: 'completed', winner_pair_id: winnerPairId }).eq('id', matchId);
-    },
-    markReminderSent(matchId) {
-      return sb.from('tournament_matches').update({ reminder_sent_at: new Date().toISOString() }).eq('id', matchId);
-    },
-    markNextPingSent(matchId) {
-      return sb.from('tournament_matches').update({ next_ping_sent_at: new Date().toISOString() }).eq('id', matchId);
-    },
-
-    // ── Combined tournament signup (signup + optional partner) ─
-    async signUpForTournament(announcementId, memberId, partnerMemberId, partnerName) {
-      const su = await sb.from('signups').upsert({ announcement_id: announcementId, member_id: memberId });
-      if (su.error) return su;
-      return sb.from('tournament_pairs').upsert({
-        announcement_id: announcementId, member_id_1: memberId,
-        ...companero(partnerMemberId, partnerName),
-      }, { onConflict: 'announcement_id,member_id_1' });
-    },
-
-    // ── Batch member lookup (for WhatsApp phone numbers) ────────
-    getMembersByMemberIds(memberIds) {
-      return sb.from('members').select('*').in('member_id', memberIds);
     },
   };
 })();

@@ -3,6 +3,43 @@
 Lo que falta, con quién lo hace. Las reglas vigentes están en `CLAUDE.md`; lo que pasó, con fecha,
 en `docs/BITACORA.md`.
 
+## Los torneos, fuera de la lealtad (v3.6)
+
+- 🕐 **Retirar de la base `tournaments`, `tournament_pairs` y `tournament_matches`.** Desde la v3.6
+  ninguna de las dos apps las lee ni las escribe (búsqueda en `docs/BITACORA.md`). Conteos del 6 de
+  octubre de 2026, leídos con la cuenta de personal: **`tournaments` 1, `tournament_pairs` 1,
+  `tournament_matches` 0**. El torneo es el del aviso «Torneo» (`360e075a-…`); el POS los borra en
+  cascada al borrar su aviso (`sonda-matches.mjs` del POS). **El SQL lo escribe Claude en Cowork**,
+  no se corre desde aquí. ⚠️ `politicas.mjs` del POS mide las tres con un torneo de la lealtad
+  sembrado: retirarlas pide quitarlas también de ese control.
+- **`signups` NO se retira**: es la inscripción a cualquier aviso con `allow_signup`, no solo a
+  torneos. Hoy tiene **2 filas, las dos de avisos de tipo torneo**, y hay un aviso que no es torneo
+  con inscripción («Clase muestra», tipo `precio`); de 8 avisos, 5 son torneo, 2 precio y 1 info, y
+  6 tienen `allow_signup`. Qué hacer con las 2 inscripciones viejas a torneos lo decide Edgar: la app
+  ya no las enseña (un aviso de torneo no tiene botón), y el POS y el panel sí las listan.
+- ⚠️ **Un aviso de tipo torneo con `allow_signup` ya no enseña botón en la app.** El POS y el panel
+  todavía dejan marcar la casilla en un torneo; la casilla no hace nada visible para el socio. No se
+  tocó el POS: es de otro repo y no se pidió.
+
+## Apagar el panel viejo (`Admin.html`) — no se apagó en la v3.6
+
+Los torneos se fueron, pero **el panel todavía hace cuatro cosas que el POS no** (inventario del 6 de
+octubre de 2026, función por función, en la bitácora). Mientras sigan, el panel se queda:
+
+1. **La lista de todos los socios** sin escribir nada, y buscar por **correo**. El POS no tiene
+   lista a propósito («no hay lista: se busca») y `buscar_socios` busca por nombre, credencial y
+   teléfono, no por correo.
+2. **El historial «Todo»** —todas las visitas del club— y el total. El POS tiene Hoy, Semana y Mes.
+3. **En la ficha, las visitas una por una** con su número y su premio (GRATIS / SILVER), y los
+   contadores de canchas gratis y visitas Silver dadas. El POS enseña totales, el ciclo, la última
+   visita y los premios **aplicados en un cobro**, que no son lo mismo.
+4. **En la ficha, «Miembro desde» (`joined_at`) y el aviso «🎂 Mes de cumpleaños».** El POS enseña
+   el cumpleaños, no el mes, y no enseña `joined_at` (sí `vinculado_en`).
+
+Edgar decide, para cada una, si el POS la gana o si se deja de hacer; con las cuatro resueltas, el
+paso 3 de ese día —`Admin.html` como página mínima que manda al POS, sin cargar Supabase— se hace
+tal cual.
+
 ## La cancha de una visita
 
 - 🕐 **Quitar el default de `visits.court`, para que quede nulo cuando no se sabe.** Desde la v3.4

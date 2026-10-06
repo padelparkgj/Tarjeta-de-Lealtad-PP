@@ -41,6 +41,16 @@ two apps.
 - **The panel cannot delete visits** (Edgar, 30 Sep 2026). A visit is deleted only from the POS, by `anular_visita`, which leaves a record in `anulaciones`. Once the DELETE policy on `visits` is dropped, a table delete would silently do nothing: `deleteVisit` and its button are gone on purpose. Don't put them back.
 - **«Silver» names only the rate.** The member's tier by visits (`tierFor`: Bronce <10, Plata ≥10, Oro ≥25, Leyenda ≥50 — same thresholds as before, Spanish names since v3.2) keeps its CSS `key`s. And `members.level` is a third thing: playing level (Principiante, Intermedio…).
 - **The reception panel logs in with a POS staff account** and checks `es_personal()`. There is no PIN.
+- **No tournaments here** (v3.6, Edgar, 6 Oct 2026). Member tournaments are run in another app; in
+  this one a `torneo` announcement is just an announcement — title, text, image, countdown — with
+  **no signup button even if `allow_signup` is on**, no partner, no schedule, no results, no
+  «Torneos» tab, in the member app or in the panel. Nothing reads or writes `tournaments`,
+  `tournament_pairs` or `tournament_matches`, and `tournament-logic.js` and `whatsapp.js` are
+  gone. **`signups` stays**: it is the signup to any announcement with `allow_signup` (a class, a
+  clinic), not a tournament thing. Don't bring any of it back.
+- **The panel (`Admin.html`) is still alive** because it does four things the POS doesn't yet
+  (`docs/PROMPTS.md § Apagar el panel viejo`). When Edgar resolves them, it becomes a minimal page
+  pointing to the POS. Until then, the version bump still applies to both files.
 - **No personal data leaves for a Google Sheet anymore.** Until v3.0 the sign-up form also posted name, email, phone and birthday to an Apps Script, guarded by a token published in `config.js`. Edgar turned it off on 26 Sep 2026: the data lives in the base, and the sheet was a copy behind a public password. `api.js`, `apps-script.gs`, `webhookUrl` and `sheetToken` are gone. **`config.js` carries nothing secret** — do not put a token back in it.
 - **Nothing points to the old loyalty project (`fsuqslgmilyqkutyvvdl`) anymore**, in code or in the base: the 5 announcement images were copied byte for byte to the POS bucket on 26 Sep 2026 and `image_url` rewritten (`docs/imagenes-avisos-2026-09-26.md`, old → new). Only git history and that doc still name it. It can be shut down.
 - Manual verification procedure: `PRUEBAS.md`. There is deliberately no automated test suite here — this app will be absorbed into the POS.
@@ -53,9 +63,6 @@ Los de la promoción y la cancha están en `docs/PROMPTS.md`.
 - **El Apps Script sigue desplegado en Google** con la hoja y sus copias: la app ya no le manda
   nada, pero su URL y su token viajaron publicados. Apagarlo (Implementar → Administrar
   implementaciones → Archivar) y decidir qué pasa con la hoja es de Edgar.
-- **Un socio solo puede leer su propia ficha**: el buscador de pareja del socio ya no encuentra
-  a otros socios y abre en «Escribir nombre» (la pareja queda como invitado). Los nombres de
-  los rivales en la tarjeta del socio probablemente salen vacíos por lo mismo — no medido.
 - **El nivel de juego del registro pisa el de la ficha enlazada**: se escribe después de
   `vincular_socio` y no distingue ficha nueva de ficha reclamada.
 - `README.md` describe la versión de Google Sheets y está desactualizado.

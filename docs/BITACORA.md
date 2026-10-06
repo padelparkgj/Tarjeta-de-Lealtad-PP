@@ -3,7 +3,68 @@
 Qué se hizo y qué se midió, con fecha. Las reglas vigentes están en `CLAUDE.md`; lo pendiente, en
 `docs/PROMPTS.md`. Las entradas anteriores a esta viven en los mensajes de commit y en `PRUEBAS.md`.
 
-## v3.5 · 5 de octubre de 2026 — los textos de la regla leen la regla
+## v3.6 · 6 de octubre de 2026 — los torneos se van; el panel se queda
+
+**El porqué.** Decisión de Edgar: los torneos de socios se juegan en otra app. En ésta solo se
+anuncian, como cualquier aviso. Y el panel viejo se apagaría, porque los torneos eran lo único que
+lo mantenía vivo… si el POS ya hiciera todo lo demás. No lo hace: el panel se queda.
+
+**El inventario, antes de borrar.** Lo que tocaba las tres tablas de torneo vivía todo en
+`supabase-client.js` (15 líneas): `getTournamentConfig` / `saveTournamentConfig` (`tournaments`),
+`getTournamentPairs`, `assignPartner`, `upsertPair`, `unassignPartner` (`tournament_pairs`),
+`saveTournamentSchedule`, `getTournamentMatches`, `recordMatchWinner`, `markReminderSent`,
+`markNextPingSent` (`tournament_matches`), `signUpForTournament` (`signups` + `tournament_pairs`) y
+`getMembersByMemberIds` (teléfonos para WhatsApp). Las llamaban: en la app, `AnnCard` —inscripción
+con pareja (`PartnerPickerModal`), «Tu partido», «Tus resultados» y el campeón con
+`PPTournament.computeStandings`— y la pestaña «Torneos» (`TournamentsScreen`); en el panel, la
+pestaña «Torneos» y `TournamentModal` con sus tres pestañas —configuración, parejas
+(`MemberPickerModal`, aviso por WhatsApp) y rol (`PPTournament`: round-robin, horario, siguiente
+por cancha, posiciones; resultados; recordatorios por WhatsApp)—. Más `tournament-logic.js` y
+`whatsapp.js`. `signups` lo usaban, además, la inscripción **sin pareja** de cualquier aviso con
+`allow_signup` (`signUpForEvent`, `cancelSignup`, `getMemberSignups`), la lista de inscritos del
+panel (`getEventSignups`, `AnnSignupsModal`) y la ficha del socio en el panel.
+
+**La base, solo leyendo** (cuenta de personal): 8 avisos —5 torneo, 2 precio, 1 info—, 6 con
+`allow_signup`, **ninguno visible hoy** (los 8 vencieron); `signups` 2 filas, las dos de avisos de
+torneo; `tournaments` 1, `tournament_pairs` 1, `tournament_matches` 0. Como «Clase muestra» (tipo
+`precio`) tiene inscripción, **`signups` tiene otro uso y se queda intacto**.
+
+**Lo que se quitó.** En la app: el selector de pareja, el bloque de partido, resultados y campeón,
+la pestaña «Torneos» y `tournament-logic.js` de la página. Un aviso de torneo ahora sale en Inicio
+con los demás —antes Inicio los excluía y vivían en su pestaña— y **no tiene botón aunque tenga
+`allow_signup`**. Los demás avisos con inscripción la conservan. En el panel: la pestaña «Torneos»,
+`TournamentModal` y sus tres pestañas, `MemberPickerModal`; el contador de inscritos de un aviso de
+torneo abre la lista simple, como el de cualquier aviso; «Torneos inscritos» de la ficha pasa a
+«Inscripciones a avisos». Borrados `tournament-logic.js` y `whatsapp.js`, que solo los usaban los
+torneos. Y en `supabase-client.js`, todas las funciones de torneo con sus ayudantes (`SEL_PAREJA`,
+`pareja`, `companero`).
+
+**La búsqueda.** Antes: 15 líneas que nombran `tournaments`, `tournament_pairs` o
+`tournament_matches`, todas en `supabase-client.js`, y lógica de torneo en seis archivos (`app.jsx`
+5, `admin.jsx` 14, `supabase-client.js` 27, las dos páginas 1 cada una, `tournament-logic.js` 1).
+Después: **0 accesos**; las 2 líneas que quedan son el comentario de `supabase-client.js` que dice
+que nada las toca. `ios-app/` no las toca: solo dice «Torneos y clínicas» como beneficio. Los
+estilos de los bloques de torneo (`.ann-match-block`, `.trn-*`, `.pp-modal`) se quedan en
+`styles.css` y `admin.css`: no leen nada, y no se pidió.
+
+**El panel no se apagó.** Funciones del panel y dónde viven en el POS: escanear o teclear la
+credencial con la promoción y registrar la visita → Socios → Registrar visita; historial Hoy /
+Semana / Mes → Historial de visitas; avisos (crear, editar, imagen, fecha, vencimiento,
+inscripción, borrar, inscritos) → Socios → Avisos, que además activa y desactiva; ficha con datos,
+total, ciclo e inscripciones → la ficha del socio. **Cuatro que el POS no hace**: la lista de todos
+los socios y buscar por correo; el historial «Todo»; las visitas una por una con su premio y los
+contadores de premios dados; «Miembro desde» y «Mes de cumpleaños». Quedan en `docs/PROMPTS.md`, y
+`Admin.html` sigue siendo el panel.
+
+**Probado en el navegador** (Playwright sin cabeza, la carpeta servida en local, la base real, solo
+lectura: toda escritura se habría abortado y no salió ninguna). Cuenta de personal, con «mi ficha»
+sustituida por la de PP-26-5917, porque no hay cuenta de socio de prueba. Como ningún aviso está
+visible, **se interceptó la lectura de avisos**: dos avisos reales con el vencimiento movido al 31 de
+diciembre, «Torneo» (torneo, con inscripción) y «Clase muestra» (precio, con inscripción). Pestañas:
+«Tarjeta · Beneficios · Perfil». Inicio: «… 6 VISITAS 🎉 ¡Cancha GRATIS desbloqueada! … TORNEO Torneo
+Inscríbete ya PRECIO ESPECIAL Clase muestra Ven a nuestra clase gratis Inscribirme → …». La tarjeta del
+torneo, con su imagen y **sin botón**; la de la clase, con «Inscribirme →». El panel: «Escanear ·
+Historial · Socios · Avisos · Ajustes», sin Torneos; Ajustes, «v3.6 · base del POS».
 
 **El porqué.** La bienvenida y Beneficios escribían la regla a mano (ciclo de 7, 4.ª Silver, 7.ª
 gratis). Con la regla programable desde el POS, el día que Edgar la cambie esas pantallas

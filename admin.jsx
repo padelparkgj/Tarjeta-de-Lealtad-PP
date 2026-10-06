@@ -747,7 +747,7 @@ function MemberProfileModal({ memberId, memberName: fallbackName, onClose }) {
             {/* Event signups */}
             {signups.length > 0 && (
               <>
-                <div className="mp-section-title">Torneos inscritos</div>
+                <div className="mp-section-title">Inscripciones a avisos</div>
                 <div className="mp-signup-list">
                   {signups.map(s => {
                     const ann = annMap[s.announcement_id];
@@ -862,493 +862,6 @@ function MembersScreen({ onViewMember }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Member picker — searchable list, used to assign a tournament partner
-// ─────────────────────────────────────────────────────────────
-function MemberPickerModal({ title = 'Elegir pareja', excludeMemberIds = [], onPick, onClose }) {
-  const [mode,    setMode]    = useState('search'); // 'search' | 'manual'
-  const [members, setMembers] = useState([]);
-  const [search,  setSearch]  = useState('');
-  const [manualName, setManualName] = useState('');
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!window.PPSb) { setLoading(false); return; }
-    window.PPSb.getAllMembers().then(({ data }) => {
-      setMembers(data || []);
-      setLoading(false);
-    });
-  }, []);
-
-  const filtered = members.filter(m =>
-    !excludeMemberIds.includes(m.member_id) &&
-    (!search ||
-      (m.name || '').toLowerCase().includes(search.toLowerCase()) ||
-      (m.member_id || '').toLowerCase().includes(search.toLowerCase()))
-  );
-
-  function confirmManual() {
-    if (!manualName.trim()) return;
-    onPick({ member_id: null, name: manualName.trim() });
-  }
-
-  return (
-    <div className="ann-modal-overlay" onClick={onClose}>
-      <div className="ann-modal" onClick={e => e.stopPropagation()}>
-        <div className="ann-modal-header">
-          <div className="ann-modal-title">{title}</div>
-          <button className="ann-del" onClick={onClose}><Ic.x style={{width:14,height:14}}/></button>
-        </div>
-
-        <div className="trn-tabs">
-          <button className={`ann-type-pill ${mode==='search'?'active':''}`}
-            style={mode==='search' ? { background:'var(--lime)', borderColor:'var(--lime)', color:'var(--navy)' } : {}}
-            onClick={() => setMode('search')}>
-            Socio registrado
-          </button>
-          <button className={`ann-type-pill ${mode==='manual'?'active':''}`}
-            style={mode==='manual' ? { background:'var(--lime)', borderColor:'var(--lime)', color:'var(--navy)' } : {}}
-            onClick={() => setMode('manual')}>
-            Escribir nombre
-          </button>
-        </div>
-
-        {mode === 'search' && (
-          <>
-            <div className="search-wrap">
-              <Ic.search style={{width:16,height:16,opacity:.4,flexShrink:0}}/>
-              <input className="search-input" value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Buscar socio…" autoFocus />
-            </div>
-            {loading && <div className="empty">Cargando…</div>}
-            {!loading && filtered.length === 0 && <div className="empty" style={{padding:16}}>Sin resultados.</div>}
-            <div className="member-list">
-              {filtered.map(m => (
-                <div key={m.id} className="member-row" onClick={() => onPick(m)}>
-                  <div className="member-avatar">{initials(m.name)}</div>
-                  <div className="member-row-info">
-                    <div className="member-row-name">{m.name}</div>
-                    <div className="member-row-meta">{m.member_id}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-
-        {mode === 'manual' && (
-          <div style={{padding:'4px 0'}}>
-            <div className="field">
-              <label>Nombre de la pareja</label>
-              <input value={manualName} onChange={e => setManualName(e.target.value)}
-                placeholder="Nombre completo" autoFocus />
-            </div>
-            <p style={{fontSize:12, color:'rgba(14,29,87,0.5)', margin:'-6px 0 12px'}}>
-              Si no es socio registrado, no podrá recibir avisos por WhatsApp automáticamente.
-            </p>
-            <button className="btn btn-primary" style={{width:'100%'}} onClick={confirmManual} disabled={!manualName.trim()}>
-              Usar este nombre
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// Tournament — config tab (canchas, duración, horario)
-// ─────────────────────────────────────────────────────────────
-function TournamentConfigTab({ ann, config, onSaved }) {
-  const [form, setForm] = useState({
-    court_count:        config?.court_count || 3,
-    match_duration_min: config?.match_duration_min || 60,
-    start_time:         config?.start_time ? config.start_time.slice(0,5) : '09:00',
-    end_time:           config?.end_time ? config.end_time.slice(0,5) : '18:00',
-  });
-  const [busy, setBusy] = useState(false);
-  const locked = !!config?.schedule_generated_at;
-
-  async function save() {
-    setBusy(true);
-    await window.PPSb.saveTournamentConfig(ann.id, form);
-    setBusy(false);
-    onSaved();
-  }
-
-  return (
-    <div>
-      {locked && (
-        <div className="ann-edit-banner">
-          Ya se generó el rol de juego. Guardar aquí no lo borra — vuelve a generarlo desde la pestaña Rol de juego si cambias el horario.
-        </div>
-      )}
-      <div className="trn-config-grid">
-        <div className="field">
-          <label>Canchas</label>
-          <input type="number" min="1" max="8" value={form.court_count}
-            onChange={e => setForm(f => ({ ...f, court_count: +e.target.value || 1 }))} />
-        </div>
-        <div className="field">
-          <label>Duración partido (min)</label>
-          <input type="number" min="30" step="15" value={form.match_duration_min}
-            onChange={e => setForm(f => ({ ...f, match_duration_min: +e.target.value || 60 }))} />
-        </div>
-        <div className="field">
-          <label>Hora inicio</label>
-          <input type="time" value={form.start_time}
-            onChange={e => setForm(f => ({ ...f, start_time: e.target.value }))} />
-        </div>
-        <div className="field">
-          <label>Hora fin</label>
-          <input type="time" value={form.end_time}
-            onChange={e => setForm(f => ({ ...f, end_time: e.target.value }))} />
-        </div>
-      </div>
-      <button className="btn btn-primary" style={{width:'100%'}} onClick={save} disabled={busy}>
-        {busy ? 'Guardando…' : 'Guardar configuración'}
-      </button>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// Tournament — roster tab (parejas + asignar pareja + WA confirmación)
-// ─────────────────────────────────────────────────────────────
-function TournamentRosterTab({ ann, signups, pairs, phones, onChanged }) {
-  const [pickerFor, setPickerFor] = useState(null);
-
-  const pairByMemberId = {};
-  pairs.forEach(p => { pairByMemberId[p.member_id_1] = p; });
-  const rows = signups.map(s => pairByMemberId[s.member_id] || {
-    id: null, member_id_1: s.member_id, member_name_1: s.member_name || s.member_id,
-    member_id_2: null, member_name_2: null,
-  });
-  const pairedIds = pairs.flatMap(p => [p.member_id_1, p.member_id_2].filter(Boolean));
-
-  async function handlePick(row, member) {
-    // Un socio va en member_id_2; alguien sin ficha, como invitado (guest_name_2).
-    const { error } = await window.PPSb.upsertPair(ann.id, row.member_id_1,
-      member.member_id || null, member.member_id ? null : member.name);
-    if (error) { alert('No se guardó la pareja: ' + error.message); return; }
-    setPickerFor(null);
-    onChanged();
-  }
-
-  function sendConfirmation(row) {
-    const phone = phones[row.member_id_1]?.phone;
-    const msg = window.PPWhatsApp.signupMessage({
-      playerName: row.member_name_1,
-      tournamentTitle: ann.title,
-      eventDateLabel: ann.event_date ? new Date(ann.event_date).toLocaleDateString('es-MX',{day:'2-digit',month:'short'}) : null,
-      partnerName: row.member_name_2,
-    });
-    const res = window.PPWhatsApp.sendWhatsApp(phone, msg);
-    if (!res.ok) alert('Teléfono inválido para ' + row.member_name_1);
-  }
-
-  return (
-    <div>
-      {rows.length === 0 && (
-        <div className="empty" style={{padding:'20px 0'}}>Sin inscritos todavía.</div>
-      )}
-      <div className="log-list">
-        {rows.map(row => (
-          <div key={row.member_id_1} className={`trn-roster-row ${!row.member_id_2 ? 'trn-roster-unpaired' : ''}`}>
-            <div className="log-body">
-              <div className="log-name">
-                {row.member_name_1}{row.member_id_2 ? ` + ${row.member_name_2}` : ''}
-              </div>
-              <div className="log-sub">
-                {row.member_id_1}{row.member_id_2 ? ` · ${row.member_id_2}` : ' · Sin pareja'}
-              </div>
-            </div>
-            {!row.member_id_2 && (
-              <button className="btn btn-ghost" style={{fontSize:12,padding:'8px 12px'}} onClick={() => setPickerFor(row)}>
-                Asignar pareja
-              </button>
-            )}
-            <button className="trn-wa-btn" title="Enviar confirmación por WhatsApp" onClick={() => sendConfirmation(row)}>
-              WA
-            </button>
-          </div>
-        ))}
-      </div>
-      {pickerFor && (
-        <MemberPickerModal
-          excludeMemberIds={[pickerFor.member_id_1, ...pairedIds]}
-          onPick={(m) => handlePick(pickerFor, m)}
-          onClose={() => setPickerFor(null)}
-        />
-      )}
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// Tournament — schedule tab (generar rol, marcar ganador, siguiente en
-// cancha, tabla de posiciones)
-// ─────────────────────────────────────────────────────────────
-function TournamentScheduleTab({ ann, config, pairs, matches, phones, onChanged }) {
-  const [genBusy, setGenBusy] = useState(false);
-  const [genErr,  setGenErr]  = useState(null);
-
-  const completePairs = pairs.filter(p => p.member_id_2);
-
-  async function generate() {
-    setGenErr(null);
-    if (!config || !config.start_time || !config.end_time) {
-      setGenErr('Primero configura el horario en la pestaña Configuración.');
-      return;
-    }
-    if (completePairs.length < 2) {
-      setGenErr('Se necesitan al menos 2 parejas completas (con ambos jugadores) para generar el rol de juego.');
-      return;
-    }
-    setGenBusy(true);
-    const rounds = window.PPTournament.generateRoundRobinMatches(completePairs);
-    const dateStr = ann.event_date ? ann.event_date.slice(0,10) : new Date().toISOString().slice(0,10);
-    const result = window.PPTournament.assignSchedule(rounds, {
-      courtCount:        config.court_count,
-      matchDurationMin:  config.match_duration_min,
-      dateStr,
-      startTime:         config.start_time.slice(0,5),
-      endTime:           config.end_time.slice(0,5),
-    });
-    if (!result.ok) {
-      setGenErr(result.message);
-      setGenBusy(false);
-      return;
-    }
-    await window.PPSb.saveTournamentSchedule(ann.id, result.schedule);
-    await window.PPSb.saveTournamentConfig(ann.id, { ...config, schedule_generated_at: new Date().toISOString() });
-    setGenBusy(false);
-    onChanged();
-  }
-
-  async function markWinner(match, winnerPairId) {
-    await window.PPSb.recordMatchWinner(match.id, winnerPairId);
-    onChanged();
-  }
-
-  function messageFor(builder, mid, name, partnerName, opp, extra) {
-    const phone = phones[mid]?.phone;
-    const msg = builder({ playerName: name, partnerName, opponent1: opp.member_name_1, opponent2: opp.member_name_2 || '', ...extra });
-    return window.PPWhatsApp.sendWhatsApp(phone, msg);
-  }
-
-  function sendReminder(match) {
-    [match.pair_a, match.pair_b].forEach(pair => {
-      if (!pair) return;
-      const opp = pair.id === match.pair_a.id ? match.pair_b : match.pair_a;
-      [[pair.member_id_1, pair.member_name_1, pair.member_name_2], [pair.member_id_2, pair.member_name_2, pair.member_name_1]]
-        .forEach(([mid, name, partnerName]) => {
-          if (!mid) return;
-          messageFor(window.PPWhatsApp.matchReminderMessage, mid, name, partnerName, opp, {
-            court: match.court, timeLabel: fmtTime(match.match_start),
-          });
-        });
-    });
-    window.PPSb.markReminderSent(match.id);
-    onChanged();
-  }
-
-  function sendNextUp(match) {
-    [match.pair_a, match.pair_b].forEach(pair => {
-      if (!pair) return;
-      const opp = pair.id === match.pair_a.id ? match.pair_b : match.pair_a;
-      [[pair.member_id_1, pair.member_name_1, pair.member_name_2], [pair.member_id_2, pair.member_name_2, pair.member_name_1]]
-        .forEach(([mid, name, partnerName]) => {
-          if (!mid) return;
-          messageFor(window.PPWhatsApp.nextUpMessage, mid, name, partnerName, opp, { court: match.court });
-        });
-    });
-    window.PPSb.markNextPingSent(match.id);
-    onChanged();
-  }
-
-  const courts = [...new Set(matches.map(m => m.court))].sort();
-  const nextPerCourt = courts
-    .map(c => window.PPTournament.findNextOnCourt(matches, { court: c, id: null }))
-    .filter(Boolean);
-
-  const standings = window.PPTournament.computeStandings(completePairs, matches);
-
-  return (
-    <div>
-      {matches.length === 0 && (
-        <>
-          <p style={{fontSize:13, color:'rgba(14,29,87,0.6)', marginBottom:12}}>
-            {completePairs.length} pareja{completePairs.length!==1?'s':''} lista{completePairs.length!==1?'s':''} para jugar.
-          </p>
-          <button className="btn btn-primary" style={{width:'100%'}} onClick={generate} disabled={genBusy}>
-            {genBusy ? 'Generando…' : 'Generar rol de juego'}
-          </button>
-          {genErr && <div className="trn-error">{genErr}</div>}
-        </>
-      )}
-
-      {matches.length > 0 && (
-        <>
-          {nextPerCourt.length > 0 && (
-            <>
-              <div className="mp-section-title">Siguiente por cancha</div>
-              <div className="log-list" style={{marginBottom:16}}>
-                {nextPerCourt.map(m => (
-                  <div key={m.id} className="trn-match-row trn-next-up">
-                    <div className="trn-match-court">{m.court}</div>
-                    <div className="trn-match-info">
-                      <div className="trn-match-time">{fmtTime(m.match_start)}</div>
-                      <div className="log-name">
-                        {m.pair_a?.member_name_1}{m.pair_a?.member_name_2?` / ${m.pair_a.member_name_2}`:''}
-                        {' '}vs{' '}
-                        {m.pair_b?.member_name_1}{m.pair_b?.member_name_2?` / ${m.pair_b.member_name_2}`:''}
-                      </div>
-                    </div>
-                    <button className="trn-wa-btn" title="Avisar que ya casi es su turno" onClick={() => sendNextUp(m)}>
-                      WA
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-
-          <div className="mp-section-title">Partidos ({matches.length})</div>
-          <div className="log-list">
-            {matches.map(m => {
-              const isCompleted = m.status === 'completed';
-              return (
-                <div key={m.id} className={`trn-match-row ${isCompleted ? 'trn-match-done' : ''}`}>
-                  <div className="trn-match-court">{m.court}</div>
-                  <div className="trn-match-info">
-                    <div className="trn-match-time">{fmtTime(m.match_start)}</div>
-                    <div className="trn-match-teams">
-                      <button className={`trn-team-btn ${m.winner_pair_id===m.pair_a_id?'winner':''}`}
-                        disabled={isCompleted} onClick={() => markWinner(m, m.pair_a_id)}>
-                        {m.pair_a?.member_name_1}{m.pair_a?.member_name_2?` / ${m.pair_a.member_name_2}`:''}
-                      </button>
-                      <span className="trn-vs">vs</span>
-                      <button className={`trn-team-btn ${m.winner_pair_id===m.pair_b_id?'winner':''}`}
-                        disabled={isCompleted} onClick={() => markWinner(m, m.pair_b_id)}>
-                        {m.pair_b?.member_name_1}{m.pair_b?.member_name_2?` / ${m.pair_b.member_name_2}`:''}
-                      </button>
-                    </div>
-                  </div>
-                  {!isCompleted && (
-                    <button className="trn-wa-btn" title="Recordatorio de partido" onClick={() => sendReminder(m)}>
-                      WA
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="mp-section-title">Tabla de posiciones</div>
-          <div className="log-list">
-            {standings.ranked.map((r, i) => {
-              const isChampion = standings.champion && standings.champion.pair.id === r.pair.id;
-              return (
-                <div key={r.pair.id} className={`trn-standings-row ${isChampion ? 'trn-champion' : ''}`}>
-                  <div className="trn-standings-pos">{i+1}</div>
-                  <div className="log-body">
-                    <div className="log-name">
-                      {r.pair.member_name_1}{r.pair.member_name_2?` / ${r.pair.member_name_2}`:''}
-                      {isChampion ? ' 🏆' : ''}
-                    </div>
-                  </div>
-                  <div className="trn-standings-wins">{r.wins} V</div>
-                </div>
-              );
-            })}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// Tournament modal — configuración / roster / rol de juego
-// ─────────────────────────────────────────────────────────────
-const TRN_TABS = [
-  { k: 'config',   l: 'Configuración' },
-  { k: 'roster',   l: 'Roster' },
-  { k: 'schedule', l: 'Rol de juego' },
-];
-
-function TournamentModal({ ann, onClose }) {
-  const [trnTab,   setTrnTab]   = useState('config');
-  const [config,   setConfig]   = useState(null);
-  const [pairs,    setPairs]    = useState([]);
-  const [signups,  setSignups]  = useState([]);
-  const [matches,  setMatches]  = useState([]);
-  const [phones,   setPhones]   = useState({});
-  const [loading,  setLoading]  = useState(true);
-
-  function loadAll() {
-    if (!window.PPSb) { setLoading(false); return; }
-    Promise.all([
-      window.PPSb.getTournamentConfig(ann.id),
-      window.PPSb.getTournamentPairs(ann.id),
-      window.PPSb.getEventSignups(ann.id),
-      window.PPSb.getTournamentMatches(ann.id),
-    ]).then(([cRes, pRes, sRes, mRes]) => {
-      setConfig(cRes.data || null);
-      setPairs(pRes.data || []);
-      setSignups(sRes.data || []);
-      setMatches(mRes.data || []);
-      setLoading(false);
-    });
-  }
-  useEffect(loadAll, [ann.id]);
-
-  useEffect(() => {
-    const ids = new Set();
-    pairs.forEach(p => { ids.add(p.member_id_1); if (p.member_id_2) ids.add(p.member_id_2); });
-    if (ids.size === 0) { setPhones({}); return; }
-    window.PPSb.getMembersByMemberIds([...ids]).then(({ data }) => {
-      const map = {};
-      (data || []).forEach(m => { map[m.member_id] = m; });
-      setPhones(map);
-    });
-  }, [pairs]);
-
-  return (
-    <div className="mp-modal-overlay" onClick={onClose}>
-      <div className="mp-modal" onClick={e => e.stopPropagation()}>
-        <div className="mp-modal-header">
-          <div className="mp-modal-info">
-            <div className="mp-modal-name">{ann.title}</div>
-            <div className="mp-modal-meta">Torneo · {signups.length} inscrito{signups.length!==1?'s':''}</div>
-          </div>
-          <button className="ann-del" onClick={onClose}><Ic.x style={{width:14,height:14}}/></button>
-        </div>
-
-        <div className="trn-tabs">
-          {TRN_TABS.map(t => (
-            <button key={t.k} className={`ann-type-pill ${trnTab===t.k?'active':''}`}
-              style={trnTab===t.k ? { background:'var(--lime)', borderColor:'var(--lime)', color:'var(--navy)' } : {}}
-              onClick={() => setTrnTab(t.k)}>
-              {t.l}
-            </button>
-          ))}
-        </div>
-
-        {loading && <div className="empty">Cargando…</div>}
-        {!loading && (
-          <div className="mp-modal-body">
-            {trnTab === 'config'   && <TournamentConfigTab ann={ann} config={config} onSaved={loadAll} />}
-            {trnTab === 'roster'   && <TournamentRosterTab ann={ann} signups={signups} pairs={pairs} phones={phones} onChanged={loadAll} />}
-            {trnTab === 'schedule' && <TournamentScheduleTab ann={ann} config={config} pairs={pairs} matches={matches} phones={phones} onChanged={loadAll} />}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
 // Announcements screen
 // ─────────────────────────────────────────────────────────────
 const TYPES = [
@@ -1401,7 +914,6 @@ function AnnouncementsScreen() {
   const [busy,       setBusy]       = useState(false);
   const [uploading,  setUploading]  = useState(false);
   const [viewSignups, setViewSignups] = useState(null);
-  const [viewTournament, setViewTournament] = useState(null);
   const [editingId,  setEditingId]  = useState(null);
   const [form, setForm] = useState({
     type: 'torneo', title: '', body: '',
@@ -1605,7 +1117,7 @@ function AnnouncementsScreen() {
                   </div>
                   {a.allow_signup && (
                     <button className="ann-signup-count"
-                      onClick={() => a.type === 'torneo' ? setViewTournament(a) : setViewSignups(a)}>
+                      onClick={() => setViewSignups(a)}>
                       {signupCounts[a.id] || 0} inscripciones →
                     </button>
                   )}
@@ -1633,7 +1145,6 @@ function AnnouncementsScreen() {
       </div>
 
       {viewSignups && <AnnSignupsModal ann={viewSignups} onClose={() => { setViewSignups(null); load(); }} />}
-      {viewTournament && <TournamentModal ann={viewTournament} onClose={() => { setViewTournament(null); load(); }} />}
     </div>
   );
 }
@@ -1659,7 +1170,7 @@ function SettingsScreen({ onLogout }) {
         <div className="set-row"><span>Club</span><strong>{cfg.club?.name||'Padel Park'} · {cfg.club?.city||''}</strong></div>
       </div>
       <div className="set-card">
-        <div className="set-row"><span>Versión</span><strong>v3.5 · base del POS</strong></div>
+        <div className="set-row"><span>Versión</span><strong>v3.6 · base del POS</strong></div>
       </div>
       <h3 style={{marginTop:22}}>Instrucciones</h3>
       <ol className="steps-list">
@@ -1689,77 +1200,13 @@ function AdminEasterEgg({ onClose }) {
           <img src="assets/logo-navy.jpg" alt="PP" />
         </div>
         <div className="ee-name">Padel Park Gran Jardín</div>
-        <div className="ee-version">v3.5 · Panel de Recepción</div>
+        <div className="ee-version">v3.6 · Panel de Recepción</div>
         <div className="ee-divider" />
         <div className="ee-made">Desarrollado por</div>
         <div className="ee-creator">ProcesaLab</div>
         <div className="ee-sub">by EAJDR</div>
         <button className="ee-close" onClick={onClose}>Cerrar</button>
       </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// Tournaments screen — dedicated tab, lists all torneo announcements
-// ─────────────────────────────────────────────────────────────
-function TournamentsScreen() {
-  const [items,   setItems]   = useState([]);
-  const [counts,  setCounts]  = useState({});
-  const [loading, setLoading] = useState(true);
-  const [viewTournament, setViewTournament] = useState(null);
-
-  function load() {
-    if (!window.PPSb) { setLoading(false); return; }
-    window.PPSb.getAnnouncements().then(async ({ data }) => {
-      const torneos = (data || []).filter(a => a.type === 'torneo');
-      setItems(torneos);
-      const c = {};
-      await Promise.all(torneos.map(async a => {
-        const { data: s } = await window.PPSb.getEventSignups(a.id);
-        c[a.id] = (s || []).length;
-      }));
-      setCounts(c);
-      setLoading(false);
-    });
-  }
-  useEffect(load, []);
-
-  return (
-    <div className="ann-screen">
-      <h2>Torneos</h2>
-      <p className="ann-lead">Administra parejas, rol de juego y resultados de cada torneo. Para crear uno nuevo, publícalo desde la pestaña Avisos con tipo «Torneo».</p>
-
-      {loading && <div className="empty">Cargando…</div>}
-      {!loading && items.length === 0 && (
-        <div className="empty" style={{padding:'24px 0'}}>
-          <Ic.trophy style={{width:28,height:28,opacity:.25,marginBottom:8}}/>
-          <div>Sin torneos publicados todavía.</div>
-        </div>
-      )}
-
-      <div style={{display:'flex', flexDirection:'column', gap:10}}>
-        {items.map(a => (
-          <div key={a.id} className="ann-row" style={{cursor:'pointer'}} onClick={() => setViewTournament(a)}>
-            <div className="ann-row-main">
-              <div className="ann-badge" style={{background:'#b8f24a22', color:'#8fce20', borderColor:'#b8f24a44', marginBottom:4}}>
-                TORNEO
-              </div>
-              <div className="ann-body">
-                <div className="ann-title">{a.title}</div>
-                <div className="ann-msg">{a.body}</div>
-                <div style={{display:'flex', gap:10, marginTop:4, flexWrap:'wrap'}}>
-                  {a.event_date && <div className="ann-exp">📅 {new Date(a.event_date).toLocaleDateString('es-MX',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</div>}
-                  <div className="ann-exp">{counts[a.id] || 0} inscritos</div>
-                </div>
-              </div>
-            </div>
-            <Ic.arrow style={{width:15,height:15,opacity:.3,flexShrink:0}}/>
-          </div>
-        ))}
-      </div>
-
-      {viewTournament && <TournamentModal ann={viewTournament} onClose={() => { setViewTournament(null); load(); }} />}
     </div>
   );
 }
@@ -1789,7 +1236,6 @@ function AdminSidebar({ tab, setTab, cfg, onLogoTap }) {
           { k: 'log',      icon: <Ic.log/>,    label: 'Historial' },
           { k: 'socios',   icon: <Ic.user/>,   label: 'Socios' },
           { k: 'avisos',   icon: <Ic.mega/>,   label: 'Avisos' },
-          { k: 'torneos',  icon: <Ic.trophy/>, label: 'Torneos' },
           { k: 'settings', icon: <Ic.cog/>,    label: 'Ajustes' },
         ].map(t => (
           <button key={t.k} className={`sb-nav-item ${tab === t.k ? 'active' : ''}`} onClick={() => setTab(t.k)}>
@@ -1885,7 +1331,6 @@ function AdminApp() {
         {tab==='log'      && <LogScreen onViewMember={(id, name) => setViewMember({id, name})}/>}
         {tab==='socios'   && <MembersScreen onViewMember={(id, name) => setViewMember({id, name})}/>}
         {tab==='avisos'   && <AnnouncementsScreen/>}
-        {tab==='torneos'  && <TournamentsScreen/>}
         {tab==='settings' && <SettingsScreen onLogout={logout}/>}
       </div>
 
@@ -1901,9 +1346,6 @@ function AdminApp() {
         </button>
         <button className={`atab ${tab==='avisos'?'active':''}`}   onClick={()=>setTab('avisos')}>
           <Ic.mega/><span>Avisos</span>
-        </button>
-        <button className={`atab ${tab==='torneos'?'active':''}`}  onClick={()=>setTab('torneos')}>
-          <Ic.trophy/><span>Torneos</span>
         </button>
         <button className={`atab ${tab==='settings'?'active':''}`} onClick={()=>setTab('settings')}>
           <Ic.cog/><span>Ajustes</span>

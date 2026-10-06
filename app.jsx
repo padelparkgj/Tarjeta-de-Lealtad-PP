@@ -71,11 +71,6 @@ function fmtDate(ts) {
   const months = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
   return `${d.getDate()} ${months[d.getMonth()]} · ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
 }
-function fmtTime(ts) {
-  const d = new Date(ts);
-  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-}
-
 // Lo que lleva el QR del socio: PPGJ|<credencial>, y nada más (30 de septiembre de 2026).
 // Hasta la v3.2 llevaba también el nombre, que ningún lector usa —el del POS y el del panel
 // leen el de la ficha— y solo alargaba el código: con nombre largo el QR pasaba de 25×25
@@ -245,7 +240,7 @@ function EasterEgg({ onClose }) {
           <img src="assets/logo-navy.jpg" alt="PP" />
         </div>
         <div className="ee-name">Padel Park Gran Jardín</div>
-        <div className="ee-version">v3.5 · Tarjeta de Lealtad</div>
+        <div className="ee-version">v3.6 · Tarjeta de Lealtad</div>
         <div className="ee-divider" />
         <div className="ee-made">Desarrollado por</div>
         <div className="ee-creator">ProcesaLab</div>
@@ -1092,8 +1087,9 @@ function CardScreen({ member, cardStyle, onOpenQr }) {
           </div>
         )}
 
-        {/* ── Avisos del club (los torneos viven en su propia pestaña) ── */}
-        <AnnouncementBanner member={member} excludeTypes={['torneo']} />
+        {/* ── Avisos del club. Un torneo es un aviso más (v3.6): los torneos se juegan en otra
+             app, y aquí solo se anuncian, con su título, texto, imagen y fecha. ── */}
+        <AnnouncementBanner member={member} />
       </div>
 
       {/* Off-screen, full-quality wallet card used for the PNG export */}
@@ -1309,175 +1305,33 @@ function useCountdown(eventDate) {
   return rem;
 }
 
-// Partner picker — search an existing member OR type a name manually
-// (for a partner who isn't registered in the app)
-function PartnerPickerModal({ excludeMemberIds = [], onPick, onSkip, onClose }) {
-  const [mode,       setMode]       = useState('search'); // 'search' | 'manual'
-  const [members,    setMembers]    = useState([]);
-  const [search,     setSearch]     = useState('');
-  const [manualName, setManualName] = useState('');
-  const [loading,    setLoading]    = useState(true);
-
-  useEffect(() => {
-    if (!window.PPSb) { setLoading(false); return; }
-    window.PPSb.getAllMembers().then(({ data }) => {
-      const otros = (data || []).filter(m => !excludeMemberIds.includes(m.member_id));
-      setMembers(data || []);
-      setLoading(false);
-      // Un socio solo puede leer su propia ficha en la base nueva: si no ve a nadie más,
-      // la búsqueda no es un camino, y la pareja se escribe como invitado.
-      if (otros.length === 0) setMode('manual');
-    });
-  }, []);
-
-  const filtered = members.filter(m =>
-    !excludeMemberIds.includes(m.member_id) &&
-    (!search || (m.name || '').toLowerCase().includes(search.toLowerCase()))
-  );
-
-  function confirmManual() {
-    if (!manualName.trim()) return;
-    onPick({ member_id: null, name: manualName.trim() });
-  }
-
-  return (
-    <div className="pp-modal-overlay" onClick={onClose}>
-      <div className="pp-modal" onClick={e => e.stopPropagation()}>
-        <div className="pp-modal-header">
-          <div className="pp-modal-title">Elige tu pareja</div>
-          <button className="pp-modal-close" onClick={onClose}><Ic.close style={{width:14,height:14}}/></button>
-        </div>
-
-        <div className="pp-modal-tabs">
-          <button className={`pp-tab-pill ${mode==='search'?'active':''}`} onClick={() => setMode('search')}>
-            Socio registrado
-          </button>
-          <button className={`pp-tab-pill ${mode==='manual'?'active':''}`} onClick={() => setMode('manual')}>
-            Escribir nombre
-          </button>
-        </div>
-
-        {mode === 'search' && (
-          <>
-            <input className="pp-search-input" value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="Buscar socio…" autoFocus />
-            {loading && <div className="empty">Cargando…</div>}
-            {!loading && filtered.length === 0 && <div className="empty" style={{padding:16}}>Sin resultados.</div>}
-            <div className="pp-member-list">
-              {filtered.map(m => (
-                <div key={m.id} className="pp-member-row" onClick={() => onPick(m)}>
-                  <div className="pp-member-avatar">
-                    {(m.name || '').split(' ').map(p=>p[0]).slice(0,2).join('').toUpperCase()}
-                  </div>
-                  <div className="pp-member-info">
-                    <div className="pp-member-name">{m.name}</div>
-                    <div className="pp-member-meta">{m.member_id}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-
-        {mode === 'manual' && (
-          <div style={{padding:'4px 0'}}>
-            <div className="field">
-              <label>Nombre de tu pareja</label>
-              <input value={manualName} onChange={e => setManualName(e.target.value)}
-                placeholder="Nombre completo" autoFocus />
-            </div>
-            <p style={{fontSize:12, color:'rgba(14,29,87,0.5)', margin:'-6px 0 12px'}}>
-              Si no es socio registrado, no podrá recibir avisos por WhatsApp automáticamente.
-            </p>
-            <button className="btn btn-primary" style={{width:'100%'}} onClick={confirmManual} disabled={!manualName.trim()}>
-              Usar este nombre
-            </button>
-          </div>
-        )}
-
-        <button className="btn btn-ghost" style={{width:'100%', marginTop:12}} onClick={onSkip}>
-          Sin pareja por ahora
-        </button>
-      </div>
-    </div>
-  );
-}
-
+// Un aviso del club. **Un torneo es un aviso más** (v3.6, decisión de Edgar del 6 de octubre de
+// 2026): los torneos de socios se juegan en otra app, y aquí solo se anuncian. Nada de pareja, rol,
+// resultados ni inscripción: un aviso de tipo torneo enseña su título, texto, imagen y fecha, y no
+// tiene botón. La inscripción de los demás avisos con `allow_signup` (una clase, una clínica) sigue
+// igual: es `signups`, y no es de torneos.
 function AnnCard({ ann, member, onDismiss, dismissible = true }) {
   const c   = ANN_COLORS[ann.type] || ANN_COLORS.info;
   const rem = useCountdown(ann.event_date);
-  const isTournament = ann.type === 'torneo';
+  const conInscripcion = ann.allow_signup && ann.type !== 'torneo';
   const [signedUp, setSignedUp] = useState(false);
   const [sigBusy,  setSigBusy]  = useState(false);
-  const [showPicker, setShowPicker] = useState(false);
-
-  const [pairs,   setPairs]   = useState([]);
-  const [matches, setMatches] = useState([]);
-  const [myPairId, setMyPairId] = useState(null);
 
   useEffect(() => {
-    if (!ann.allow_signup || !member || !window.PPSb) return;
+    if (!conInscripcion || !member || !window.PPSb) return;
     window.PPSb.getMemberSignups(member.member_id || member.id).then(({ data }) => {
       if (data && data.some(s => s.announcement_id === ann.id)) setSignedUp(true);
     });
   }, [ann.id]);
 
-  useEffect(() => {
-    if (!isTournament || !signedUp || !window.PPSb) return;
-    const mid = member.member_id || member.id;
-    Promise.all([
-      window.PPSb.getTournamentPairs(ann.id),
-      window.PPSb.getTournamentMatches(ann.id),
-    ]).then(([pRes, mRes]) => {
-      const allPairs = pRes.data || [];
-      const mine = allPairs.find(p => p.member_id_1 === mid || p.member_id_2 === mid);
-      setPairs(allPairs);
-      setMatches(mRes.data || []);
-      setMyPairId(mine ? mine.id : null);
-    });
-  }, [isTournament, signedUp, ann.id]);
-
-  async function cancelMySignup() {
+  async function handleSignupClick() {
     if (!member || !window.PPSb) return;
     setSigBusy(true);
     const mid = member.member_id || member.id;
-    await window.PPSb.cancelSignup(ann.id, mid);
-    setSignedUp(false);
+    if (signedUp) { await window.PPSb.cancelSignup(ann.id, mid); setSignedUp(false); }
+    else          { await window.PPSb.signUpForEvent(ann.id, mid); setSignedUp(true); }
     setSigBusy(false);
   }
-
-  async function directSignup() {
-    if (!member || !window.PPSb) return;
-    setSigBusy(true);
-    const mid = member.member_id || member.id;
-    await window.PPSb.signUpForEvent(ann.id, mid);
-    setSignedUp(true);
-    setSigBusy(false);
-  }
-
-  async function completeTournamentSignup(partner) {
-    if (!member || !window.PPSb) return;
-    setSigBusy(true);
-    const mid = member.member_id || member.id;
-    await window.PPSb.signUpForTournament(ann.id, mid, partner?.member_id || null, partner?.name || null);
-    setSignedUp(true);
-    setSigBusy(false);
-    setShowPicker(false);
-  }
-
-  function handleSignupClick() {
-    if (signedUp) { cancelMySignup(); return; }
-    if (isTournament) { setShowPicker(true); return; }
-    directSignup();
-  }
-
-  const myMatches   = myPairId ? matches.filter(m => m.pair_a_id === myPairId || m.pair_b_id === myPairId) : [];
-  const nextMatch   = myMatches.find(m => m.status === 'scheduled');
-  const pastMatches = myMatches.filter(m => m.status === 'completed');
-  const myWins      = pastMatches.filter(m => m.winner_pair_id === myPairId).length;
-  const standings   = (isTournament && window.PPTournament && pairs.length)
-    ? window.PPTournament.computeStandings(pairs.filter(p => p.member_id_2), matches)
-    : null;
 
   return (
     <div className="ann-card" style={{ borderColor: c.border }}>
@@ -1507,55 +1361,13 @@ function AnnCard({ ann, member, onDismiss, dismissible = true }) {
           </div>
         )}
 
-        {isTournament && signedUp && nextMatch && (
-          <div className="ann-match-block">
-            <div className="amb-title">Tu partido</div>
-            <div className="amb-row">Cancha {nextMatch.court} · {fmtTime(nextMatch.match_start)}</div>
-            <div className="amb-vs">
-              vs {nextMatch.pair_a_id === myPairId
-                ? `${nextMatch.pair_b?.member_name_1}${nextMatch.pair_b?.member_name_2 ? ' / '+nextMatch.pair_b.member_name_2 : ''}`
-                : `${nextMatch.pair_a?.member_name_1}${nextMatch.pair_a?.member_name_2 ? ' / '+nextMatch.pair_a.member_name_2 : ''}`}
-            </div>
-          </div>
-        )}
-
-        {isTournament && signedUp && pastMatches.length > 0 && (
-          <div className="ann-match-block">
-            <div className="amb-title">Tus resultados ({myWins}-{pastMatches.length - myWins})</div>
-            {pastMatches.map(m => {
-              const won = m.winner_pair_id === myPairId;
-              const opp = m.pair_a_id === myPairId ? m.pair_b : m.pair_a;
-              return (
-                <div key={m.id} className="amb-result-row">
-                  <span className={won ? 'amb-won' : 'amb-lost'}>{won ? 'Ganado' : 'Perdido'}</span>
-                  <span> vs {opp?.member_name_1}{opp?.member_name_2 ? ' / '+opp.member_name_2 : ''}</span>
-                </div>
-              );
-            })}
-            {standings && standings.champion && (
-              <div className="amb-champion">
-                🏆 Campeón: {standings.champion.pair.member_name_1}{standings.champion.pair.member_name_2 ? ' / '+standings.champion.pair.member_name_2 : ''}
-              </div>
-            )}
-          </div>
-        )}
-
-        {ann.allow_signup && (
+        {conInscripcion && (
           <button className={`ann-signup-btn ${signedUp ? 'signed' : ''}`}
             onClick={handleSignupClick} disabled={sigBusy}>
             {sigBusy ? '…' : signedUp ? '✓ Inscrito — cancelar' : 'Inscribirme →'}
           </button>
         )}
       </div>
-
-      {showPicker && member && (
-        <PartnerPickerModal
-          excludeMemberIds={[member.member_id || member.id]}
-          onPick={completeTournamentSignup}
-          onSkip={() => completeTournamentSignup(null)}
-          onClose={() => setShowPicker(false)}
-        />
-      )}
     </div>
   );
 }
@@ -1583,52 +1395,11 @@ function AnnouncementBanner({ member, excludeTypes = [] }) {
 }
 
 // ──────────────────────────────────────────────────────────────
-// Torneos tab — lists all tournament announcements
-// ──────────────────────────────────────────────────────────────
-function TournamentsScreen({ member }) {
-  const [items,   setItems]   = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!window.PPSb) { setLoading(false); return; }
-    window.PPSb.getAnnouncements().then(({ data }) => {
-      setItems((data || []).filter(a => a.type === 'torneo'));
-      setLoading(false);
-    });
-  }, []);
-
-  return (
-    <div className="scroll fade-in">
-      <TopBar right="TORNEOS" />
-      <div className="card-screen">
-        <h2 style={{fontFamily:"'Bebas Neue',sans-serif", fontSize:32, color:'var(--navy)', margin:'14px 0 16px'}}>
-          Torneos
-        </h2>
-
-        {loading && <div className="empty">Cargando…</div>}
-        {!loading && items.length === 0 && (
-          <div className="empty">Sin torneos activos por el momento.</div>
-        )}
-
-        {!loading && items.length > 0 && (
-          <div className="ann-banner-stack" style={{padding:0}}>
-            {items.map(a => (
-              <AnnCard key={a.id} ann={a} member={member} dismissible={false} />
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ──────────────────────────────────────────────────────────────
 // Tab bar
 // ──────────────────────────────────────────────────────────────
 function TabBar({ tab, setTab }) {
   const tabs = [
     { k: 'card',     l: 'Tarjeta',    ic: <Ic.card /> },
-    { k: 'torneos',  l: 'Torneos',    ic: <Ic.trophy /> },
     { k: 'rewards',  l: 'Beneficios', ic: <Ic.gift /> },
     { k: 'profile',  l: 'Perfil',     ic: <Ic.user /> },
   ];
@@ -1841,7 +1612,6 @@ function App() {
               </div>
             )}
             {tab === 'card'     && <CardScreen member={member} cardStyle={tweaks.cardStyle} onOpenQr={()=>setQrOpen(true)} />}
-            {tab === 'torneos'  && <TournamentsScreen member={member} />}
             {tab === 'rewards'  && <RewardsScreen />}
             {tab === 'profile'  && <ProfileScreen member={member} onReset={handleReset} />}
             <TabBar tab={tab} setTab={setTab} />
