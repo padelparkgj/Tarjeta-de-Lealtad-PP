@@ -96,6 +96,12 @@ permitido: es de la prueba, no de la app.
 `tournament_pairs` 1, `tournament_matches` 0, `signups` 2, `announcements` 8 —lo mismo que el 6—.
 Retirar las tres primeras queda en `docs/PROMPTS.md`.
 
+**Publicado** (`d320799`, GitHub Pages, `Last-Modified` 15:05:55 GMT; la misma prueba del navegador
+contra `padelparkgj.github.io/Tarjeta-de-Lealtad-PP`): `Admin.html` 200, la página mínima, 0
+scripts, 0 errores, el enlace a `https://app-padel-park.vercel.app`; `admin.jsx` y `admin.css` 404;
+`sw.js` con `ppgj-v4`; la app de socios, el mismo Inicio que en local, 0 errores, 0 respuestas ≥ 400
+y «v3.7 · Tarjeta de Lealtad». La prueba del caché se midió en local, no contra Pages.
+
 ## v3.6 · 6 de octubre de 2026 — los torneos se van; el panel se queda
 
 **El porqué.** Decisión de Edgar: los torneos de socios se juegan en otra app. En ésta solo se
