@@ -2,7 +2,8 @@
 // Network-first strategy: always tries to get fresh content,
 // falls back to cache only when offline.
 
-const CACHE = 'ppgj-v3';  // v3: la base del POS; el caché viejo trae config.js apuntando a la otra
+const CACHE = 'ppgj-v4';  // v4 (v3.7): el panel se apagó; el caché viejo guarda Admin.html, admin.jsx y admin.css
+                          // del panel, y al activarse este SW se borra entero (ver la bitácora)
 
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', e => {

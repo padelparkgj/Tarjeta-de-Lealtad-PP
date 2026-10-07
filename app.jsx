@@ -5,7 +5,7 @@ const { useState, useEffect, useMemo, useRef, useCallback } = React;
 // Aquí vivía memberIdFrom, que la inventaba en el navegador con 9,000 valores por
 // año y sin nada que impidiera repetir. No se vuelve a poner.
 
-// La promoción la calcula la base (promocion_de, la misma del POS y del panel) y llega por
+// La promoción la calcula la base (promocion_de, la misma del POS) y llega por
 // PPSb.promocionDe: aquí se pinta lo que dice, sin contar ni recorrer nada (v3.4).
 const nesima = n => `${n}.ª`;
 const PREMIO_TXT = { silver: 'precio Silver', gratis: 'cancha gratis' };
@@ -72,7 +72,7 @@ function fmtDate(ts) {
   return `${d.getDate()} ${months[d.getMonth()]} · ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
 }
 // Lo que lleva el QR del socio: PPGJ|<credencial>, y nada más (30 de septiembre de 2026).
-// Hasta la v3.2 llevaba también el nombre, que ningún lector usa —el del POS y el del panel
+// Hasta la v3.2 llevaba también el nombre, que ningún lector usa —el del POS, y el del panel cuando existía,
 // leen el de la ficha— y solo alargaba el código: con nombre largo el QR pasaba de 25×25
 // módulos a 29, 33 o 37, un dibujo más apretado y más difícil de leer. Los dos lectores
 // siguen aceptando el formato viejo, que está en tarjetas descargadas y capturas.
@@ -240,7 +240,7 @@ function EasterEgg({ onClose }) {
           <img src="assets/logo-navy.jpg" alt="PP" />
         </div>
         <div className="ee-name">Padel Park Gran Jardín</div>
-        <div className="ee-version">v3.6 · Tarjeta de Lealtad</div>
+        <div className="ee-version">v3.7 · Tarjeta de Lealtad</div>
         <div className="ee-divider" />
         <div className="ee-made">Desarrollado por</div>
         <div className="ee-creator">ProcesaLab</div>
@@ -977,7 +977,7 @@ function CardScreen({ member, cardStyle, onOpenQr }) {
   const birthday    = isBirthdayMonth(member.birth);
   // El nivel (Bronce, Plata…) sigue siendo por visitas acumuladas: es otra cosa que la promoción.
   const tier        = totalVisits !== null ? tierFor(totalVisits) : TIER_INICIAL;
-  const explicacion = promo ? window.PPSb.lineaConteo(totalVisits, promo, 'tu') : null;
+  const explicacion = promo ? window.PPSb.lineaConteo(totalVisits, promo) : null;
 
   async function downloadWallet() {
     if (!walletRef.current || !window.htmlToImage) return;
@@ -1210,7 +1210,7 @@ function ProfileScreen({ member, onReset }) {
   // ninguna lleva número, y se dice por qué.
   const promo = lectura && lectura.promo;
   const deVisita = promo ? window.PPSb.porVisita(promo) : new Map();
-  const explicacion = promo ? window.PPSb.lineaConteo(lectura.total, promo, 'tu') : null;
+  const explicacion = promo ? window.PPSb.lineaConteo(lectura.total, promo) : null;
 
   return (
     <div className="scroll fade-in">

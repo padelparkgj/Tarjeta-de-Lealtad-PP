@@ -3,6 +3,99 @@
 Qué se hizo y qué se midió, con fecha. Las reglas vigentes están en `CLAUDE.md`; lo pendiente, en
 `docs/PROMPTS.md`. Las entradas anteriores a esta viven en los mensajes de commit y en `PRUEBAS.md`.
 
+## v3.7 · 7 de octubre de 2026 — el panel se apaga
+
+**El porqué.** El 6 el panel se quedó por cuatro cosas que el POS no hacía. El POS las ganó en
+`bfd4c98` —la lista de socios con búsqueda por correo, el historial «Todo», las visitas con su
+premio y los contadores de ganados y aplicados, «Miembro desde» y el mes de cumpleaños—, publicado
+en `main` y con el Ready confirmado por Edgar. Con eso, el paso 3 del 6 se hace tal cual.
+
+**La comprobación, antes de apagar.** `admin.jsx` de la v3.6 leído entero, función por función,
+contra el código del POS en `bfd4c98` (`src/modules/socios/`):
+
+| El panel (v3.6) | En el POS publicado |
+|---|---|
+| Entrar con cuenta de personal y `es_personal()` | La puerta del POS, que pregunta lo mismo |
+| Escanear el QR con la cámara o teclear la credencial | Socios → Registrar visita: la cámara (`LectorQR`, `jsqr`) o «Credencial, QR o nombre», que además busca por nombre o teléfono |
+| Antes de confirmar: visitas, «esta será su N.ª» y el premio de esta visita | «Lleva N en la promoción. Si la registras, será la N.ª, y es …»; los sellos, en la ficha |
+| «🎂 Mes de cumpleaños» al escanear | `AvisoCumple` en la confirmación |
+| Visita guardada: su número releído y la próxima con premio | «Fue la N.ª de la promoción … La próxima con premio es la N.ª», releído |
+| «Visitas hoy» | Historial → Hoy, con el total que cuenta la base |
+| Historial Hoy / Semana / Mes / Todo con su total; el renglón abre la ficha | Historial de visitas, los cuatro periodos, por partes, con el total de la base; el nombre abre la ficha |
+| Socios: todos, con el total, y buscar por nombre, ID o correo | La lista por nombre, 25 por parte con el total; `buscar_socios` por nombre, credencial, teléfono y correo |
+| Ficha: cumpleaños, teléfono, correo, «Miembro desde», mes de cumpleaños, total y en la promoción, canchas gratis y visitas Silver, sellos, siguiente y próxima con premio, inscripciones a avisos, cada visita con su número y su premio | `FichaSocio`: todo eso, y además ganados contra aplicados en caja, lo pagado y editar |
+| Avisos: tipo, imagen, título, mensaje, fecha del evento, «mostrar hasta», inscripción; publicar, editar, borrar; los inscritos | Socios → Avisos: lo mismo, más activar y desactivar y la cifra de lo que se lleva un borrado |
+| Ajustes: conexión, club, versión, instrucciones, cerrar sesión, ir a la página de socios | No son trabajo de recepción; cerrar sesión, en el POS |
+
+**Lo que no estaba en el inventario del 6, mirado ahora.** Ninguno es trabajo de recepción que el
+POS no haga, así que no detuvo el apagado; quedan dichos:
+
+- **Instalable como app «PP Recepción»** (`admin-manifest.json`, icono de pantalla de inicio). El POS
+  no tiene manifiesto. Un aparato con ese icono abre ahora la página mínima, y desde ella el POS en
+  el navegador.
+- **La cancha de cada visita** («Cancha 01») en el historial y la ficha. El POS no la enseña, a
+  propósito: es el default de la base, no un dato.
+- **Vibración y confeti** al registrar una visita con premio. El POS lo dice con texto.
+- **Borrar la bandera vieja del PIN** (`pp_gj_admin_auth_v1`) al abrir: limpieza, no una función.
+
+**Lo borrado**: `admin.jsx`, `admin.css`, `admin-manifest.json`, `icons/admin-180.png`,
+`admin-192.png` y `admin-512.png`; en `supabase-client.js`, lo que solo el panel llamaba
+—`esPersonal`, `getMemberByMemberId`, `getAllMembers`, `logVisit`, `getAllVisits`,
+`getAnnouncementsByIds`, `createAnnouncement`, `updateAnnouncement`, `deleteAnnouncement`,
+`uploadAnnouncementImage`, `getEventSignups`— y la llave de sesión aparte (`PP_AUTH_STORAGE_KEY`);
+la tercera persona de `lineaConteo`, que solo usaba el panel; y en `styles.css` la sección «Member
+panel (admin.jsx)», 124 líneas de clases que ningún otro archivo nombra (`.member-panel`, `.mp-*`,
+`.cycle-dot`, `.cd-*`, `.sr-next`). **Lo que se quedó por compartido**: `styles.css` (la página mínima
+y la app), `assets/logo-navy.jpg` (las dos), `config.js` y `supabase-client.js` (la app), `sw.js`
+(controla todo el sitio, la página mínima incluida) e `icons/icon-*` (la app; la página mínima usa
+el de 192 de favicon). `getUser`, que no llama nadie, tampoco lo llamaba el panel: no se tocó.
+
+**`Admin.html`** es una tarjeta con el estilo del login del panel —logo, «Panel de Recepción»,
+«Padel Park Gran Jardín»— con estilos en línea sobre `styles.css`. Cero scripts, sin Supabase, sin
+sesión, sin manifiesto.
+
+**El caché.** `sw.js` es network-first y guarda en `ppgj-v3` todo GET del mismo origen que contesta
+200: un aparato que abrió el panel tiene ahí `Admin.html`, `admin.jsx`, `admin.css`,
+`supabase-client.js`, `config.js`, `admin-manifest.json` y un icono, y sin red los sirve. `CACHE`
+pasa a `ppgj-v4`: al activarse, el SW nuevo borra todo caché con otro nombre. **Medido** con Chrome
+por Playwright, un perfil en disco y el mismo origen (`localhost:5599`): la v3.6 (worktree de
+`4bd76be`) abierta dos veces deja `ppgj-v3` con 9 archivos; se cierra, se sirve la v3.7 y se vuelve a
+abrir `Admin.html`:
+
+| | Con `ppgj-v4` | Con el `sw.js` viejo (el rojo) |
+|---|---|---|
+| Primera carga | la página mínima; no pide `admin.jsx` ni Supabase | la página mínima |
+| Cachés tras el arranque | ninguno; tras recargar, `ppgj-v4` con `Admin.html`, `styles.css` y el logo | `ppgj-v3` con los 9, `admin.jsx` incluido |
+| Sin red, `Admin.html` | la página mínima, del caché | la página mínima |
+| Sin red, `admin.jsx` | falla | **200** |
+
+La primera carga ya sale bien con el SW viejo porque es network-first; lo que el cambio de nombre
+arregla es lo que el aparato **guarda**. ⚠️ **Sin medir**: un aparato que arranca **sin red** con el
+SW viejo todavía activo ve el panel viejo del caché —sin Supabase no hace nada— hasta su siguiente
+arranque con red.
+
+**Las referencias al panel.** La app (`app.jsx`): ningún enlace; dos comentarios lo nombraban y se
+corrigieron, y los textos que dicen «recepción» hablan del mostrador, no del panel. `Landing
+Page.html`, `index.html` y `manifest.json`: ninguna. `ios-app/`: ninguna (solo «recepción» como
+lugar). `supabase-client.js` y `styles.css`: las que se fueron con lo borrado. `PRUEBAS.md`: los
+casos 1–6 y 13 lo usaban; se dejan con su historia y se suman el 14 y el 15. `README.md` lo describe
+entero, pero es el de la versión de Google Sheets y ya estaba anotado como desactualizado: no se
+tocó.
+
+**En el navegador**, la carpeta servida en local (Chrome por Playwright): `Admin.html`, 0 scripts,
+`window.supabase` sin definir, 0 errores en consola —el único que salía era `/favicon.ico` 404, que
+la v3.6 también daba; ahora lleva icono—, `admin.jsx` y `admin.css` 404. La app de socios, con la
+cuenta de personal y «mi ficha» sustituida por la de PP-26-5917, y toda escritura abortada (no salió
+ninguna): Inicio «… PP-26-5917 … 6 VISITAS 🎉 ¡Cancha GRATIS desbloqueada! Tu siguiente visita, la
+7.ª, es completamente gratis … MIEMBRO DESDE 29 jun 2026 …», 0 errores, 0 respuestas ≥ 400, y el
+huevo «v3.7 · Tarjeta de Lealtad». Un `pageerror` que salió al bloquear los service workers en la
+prueba («reading 'addEventListener'») sale igual en la v3.6 con el SW bloqueado y no sale con el SW
+permitido: es de la prueba, no de la app.
+
+**La base, solo leyendo** (cuenta de personal, `HEAD` con `count=exact`): `tournaments` 1,
+`tournament_pairs` 1, `tournament_matches` 0, `signups` 2, `announcements` 8 —lo mismo que el 6—.
+Retirar las tres primeras queda en `docs/PROMPTS.md`.
+
 ## v3.6 · 6 de octubre de 2026 — los torneos se van; el panel se queda
 
 **El porqué.** Decisión de Edgar: los torneos de socios se juegan en otra app. En ésta solo se
@@ -65,6 +158,8 @@ diciembre, «Torneo» (torneo, con inscripción) y «Clase muestra» (precio, co
 Inscríbete ya PRECIO ESPECIAL Clase muestra Ven a nuestra clase gratis Inscribirme → …». La tarjeta del
 torneo, con su imagen y **sin botón**; la de la clase, con «Inscribirme →». El panel: «Escanear ·
 Historial · Socios · Avisos · Ajustes», sin Torneos; Ajustes, «v3.6 · base del POS».
+
+## v3.5 · 5 de octubre de 2026 — los textos de la regla leen la regla
 
 **El porqué.** La bienvenida y Beneficios escribían la regla a mano (ciclo de 7, 4.ª Silver, 7.ª
 gratis). Con la regla programable desde el POS, el día que Edgar la cambie esas pantallas

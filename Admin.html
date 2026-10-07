@@ -4,72 +4,103 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Padel Park · Recepción</title>
-  <link rel="manifest" href="admin-manifest.json" />
   <meta name="theme-color" content="#0e1d57" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="PP Recepción" />
-  <link rel="apple-touch-icon" href="icons/admin-180.png" />
+  <link rel="icon" href="icons/icon-192.png" />
+  <!-- El panel de recepción se apagó en la v3.7 (7 de octubre de 2026): todo lo que hacía lo hace
+       el POS. Esta página no carga Supabase ni ningún script, y no pide sesión: solo dice a dónde
+       se fue el panel. Los estilos son los de la app (styles.css) más los de la tarjeta de abajo. -->
   <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="admin.css" />
-</head>
-<body class="admin-body-bg">
-  <div id="root"></div>
-
-  <script>
-    window.addEventListener('error', e => {
-      if (e.message && e.message.includes('ResizeObserver loop')) {
-        e.stopImmediatePropagation();
-        e.preventDefault();
-      }
-    });
-  </script>
-
-  <!-- React -->
-  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
-  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
-  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
-
-  <!-- QR decoder -->
-  <script src="https://unpkg.com/jsqr@1.4.0/dist/jsQR.js"></script>
-
-  <!-- Config -->
-  <script src="config.js"></script>
-
-  <!-- Supabase -->
-  <!-- La sesión de personal del panel se guarda aparte de la del socio: las dos
-       páginas comparten dominio y, sin esto, compartirían sesión en el mismo aparato. -->
-  <script>window.PP_AUTH_STORAGE_KEY = 'pp-lealtad-recepcion-auth';</script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-  <script src="supabase-client.js"></script>
-
-  <!-- App -->
-  <script type="text/babel" src="admin.jsx"></script>
-
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js').then(reg => {
-        reg.addEventListener('updatefound', () => {
-          const sw = reg.installing;
-          sw.addEventListener('statechange', () => {
-            if (sw.state === 'installed' && navigator.serviceWorker.controller) {
-              navigator.serviceWorker.controller.postMessage({ type: 'SKIP_WAITING' });
-              window.location.reload();
-            }
-          });
-        });
-        // An installed PWA usually resumes a suspended session instead of
-        // doing a fresh navigation, so it never notices new deploys on its
-        // own — actively re-check whenever the app comes back to front.
-        const checkForUpdate = () => reg.update().catch(() => {});
-        document.addEventListener('visibilitychange', () => {
-          if (document.visibilityState === 'visible') checkForUpdate();
-        });
-        window.addEventListener('focus', checkForUpdate);
-        window.addEventListener('pageshow', checkForUpdate);
-        checkForUpdate();
-      });
+  <style>
+    body {
+      background:
+        radial-gradient(1000px 600px at 50% -10%, rgba(184, 242, 74, 0.18), transparent 60%),
+        var(--cream);
     }
-  </script>
+    .mudanza {
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      padding: 16px;
+    }
+    .mudanza-card {
+      background: var(--paper);
+      border-radius: 24px;
+      padding: 32px 24px 28px;
+      max-width: 440px;
+      width: 100%;
+      margin: auto;
+      box-shadow:
+        0 30px 80px -20px rgba(14, 29, 87, 0.3),
+        0 8px 24px -8px rgba(14, 29, 87, 0.15);
+      border: 1px solid rgba(14, 29, 87, 0.06);
+    }
+    .mudanza-logo {
+      width: 72px; height: 72px;
+      border-radius: 18px;
+      overflow: hidden;
+      box-shadow: 0 14px 30px -10px rgba(14, 29, 87, 0.4);
+      margin-bottom: 22px;
+    }
+    .mudanza-logo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .mudanza-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--navy);
+      background: rgba(184, 242, 74, 0.35);
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-weight: 600;
+    }
+    .mudanza-eyebrow .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--lime-deep); }
+    .mudanza-card h1 {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 44px;
+      color: var(--navy);
+      margin: 14px 0 6px;
+      letter-spacing: 0.01em;
+      line-height: 1;
+    }
+    .mudanza-card h1 .script { color: var(--lime-deep); display: block; font-size: 34px; margin-top: -4px; }
+    .mudanza-card .lead {
+      font-size: 14px;
+      color: rgba(14, 29, 87, 0.65);
+      line-height: 1.5;
+      margin: 6px 0 22px;
+    }
+    .mudanza-card .btn { width: 100%; text-decoration: none; }
+    .mudanza-card .nota {
+      font-size: 12.5px;
+      color: rgba(14, 29, 87, 0.65);
+      margin: 12px 0 0;
+      text-align: center;
+    }
+    .back-link {
+      display: block;
+      text-align: center;
+      margin-top: 16px;
+      font-size: 12.5px;
+      color: rgba(14, 29, 87, 0.6);
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .back-link:hover { color: var(--navy); }
+  </style>
+</head>
+<body>
+  <main class="mudanza">
+    <div class="mudanza-card">
+      <div class="mudanza-logo"><img src="assets/logo-navy.jpg" alt="Padel Park" /></div>
+      <div class="mudanza-eyebrow"><span class="dot"></span>Panel de Recepción</div>
+      <h1>Padel Park <span class="script">Gran Jardín</span></h1>
+      <p class="lead">El panel de recepción se mudó al POS del club. Ahí se registran las visitas, se consultan los socios y se publican los avisos.</p>
+      <a class="btn btn-primary" href="https://app-padel-park.vercel.app">Abrir el POS</a>
+      <p class="nota">app-padel-park.vercel.app · entra con tu cuenta de personal</p>
+      <a href="Landing Page.html" class="back-link">← Ir a la página de socios</a>
+    </div>
+  </main>
 </body>
 </html>

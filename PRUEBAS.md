@@ -15,6 +15,12 @@ septiembre de 2026, con la v3.0; los resultados de esa vez van al final.
 
 ## Casos
 
+⚠️ **Desde la v3.7 (7 de octubre de 2026) el panel de recepción no existe**: `Admin.html` es una
+página sin scripts que manda al POS. Los casos 1 a 6 y el 13 lo usaban; se dejan como estaban porque
+sus resultados de abajo los nombran, y **lo que hacían se prueba en el POS** (Socios), con sus
+controles. Lo que queda de `Admin.html` lo prueban el 14 y el 15.
+
+
 | # | Qué | Cómo | Qué tiene que pasar |
 |---|---|---|---|
 | 1 | Panel sin sesión | Abrir `Admin.html` sin haber entrado | Solo el formulario de correo y contraseña. Desde la consola, `PPSb.getAllMembers()` y `PPSb.getAllVisits()` devuelven 0 filas, y `PPSb.logVisit(...)` da `42501` |
@@ -30,6 +36,8 @@ septiembre de 2026, con la v3.0; los resultados de esa vez van al final.
 | 11 | Mostrador | Ficha sin teléfono (o dos fichas con el mismo correo) y registrarse con ese correo | «Pasa al mostrador», sin culpar, con «Ya me atendieron, intentar de nuevo» y «Cerrar sesión»; la ficha sigue sin cuenta |
 | 12 | Login | Contraseña mala; y sin red (modo avión) | «Correo o contraseña incorrectos.» · «No hay conexión con el club…» |
 | 13 | La regla de visitas | Un socio de prueba con cuenta; registrar sus visitas una a una desde el panel. Antes de cada una, leer lo que anuncia la tarjeta del socio y lo que anuncia el panel; después, lo que dice «visita registrada». Al final, el historial de las dos apps y el contador de la ficha | Coinciden con la lista de Edgar, escrita tal cual en la prueba (no con la función): 4.ª y 11.ª Silver, 7.ª y 14.ª gratis, el resto sin premio. Los sellos vuelven a cero tras la 7.ª |
+| 14 | La página mínima | Abrir `Admin.html`, sin sesión y con la consola abierta | «El panel de recepción se mudó al POS del club…» y el botón «Abrir el POS» a `https://app-padel-park.vercel.app`. Cero `<script>`, `window.supabase` sin definir, ningún error en consola; `admin.jsx` y `admin.css` dan 404 |
+| 15 | El panel guardado en un aparato | Con un perfil de navegador que abrió el panel de la v3.6 (el caché `ppgj-v3` guarda `admin.jsx`), servir la versión nueva en el mismo origen y volver a abrir `Admin.html`; después, sin red | La primera carga ya es la página mínima; tras el arranque solo queda `ppgj-v4`, sin `admin.jsx`; sin red, `Admin.html` sale del caché como página mínima y `admin.jsx` falla. Con el `sw.js` viejo, `admin.jsx` se sigue sirviendo sin red: ése es el rojo |
 | — | Si se vuelve a encender la confirmación por correo | Registrarse | «Revisa tu correo»; la tarjeta se crea en el primer inicio de sesión con los datos del registro. Hoy no se puede probar: la confirmación está apagada |
 
 ⚠️ **Nunca se prueba con el correo de un socio real**, ni se registra una visita a la

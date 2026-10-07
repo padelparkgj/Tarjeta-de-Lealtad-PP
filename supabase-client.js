@@ -15,13 +15,14 @@
 // otra app, y aquí solo se anuncian como un aviso más. Nada lee ni escribe tournaments,
 // tournament_pairs ni tournament_matches. `signups` se queda: es la inscripción a cualquier
 // aviso con allow_signup (una clase, una clínica), no solo a torneos.
+//
+// ⚠️ **Solo la app de socios usa este archivo** (v3.7, 7 de octubre de 2026): el panel de
+// recepción se apagó y lo hace el POS. Lo que solo el panel llamaba —es_personal, la lista de
+// socios y de visitas, registrar una visita, crear, editar y borrar avisos, subir su imagen y
+// los inscritos de un aviso— se fue con él. No se vuelve a poner aquí: es trabajo del POS.
 (function () {
   const cfg = window.PPGJ_CONFIG;
-  // El panel de recepción guarda su sesión aparte (Admin.html fija PP_AUTH_STORAGE_KEY):
-  // las dos páginas viven en el mismo dominio, y sin esto la sesión de personal del
-  // panel sería también la sesión de la página de socios en ese aparato.
-  const auth = window.PP_AUTH_STORAGE_KEY ? { storageKey: window.PP_AUTH_STORAGE_KEY } : {};
-  const sb  = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey, { auth });
+  const sb  = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey);
 
   // ── Nombres leídos de members ─────────────────────────────
   const conNombre = (row) => {
@@ -61,10 +62,6 @@
     onAuthChange(callback) {
       return sb.auth.onAuthStateChange(callback);
     },
-    // ¿Esta sesión es de personal del club? La misma función que usan las políticas.
-    esPersonal() {
-      return sb.rpc('es_personal');
-    },
 
     // ── Members table ─────────────────────────────────────────
     // La ficha de la cuenta con sesión. `maybeSingle`: no tener ficha no es un error,
@@ -84,23 +81,9 @@
     updateMyLevel(userId, level) {
       return sb.from('members').update({ level }).eq('user_id', userId).select('member_id');
     },
-    getMemberByMemberId(memberId) {
-      return sb.from('members').select('*').eq('member_id', memberId).maybeSingle();
-    },
-    getAllMembers() {
-      return sb.from('members')
-        .select('*')
-        .order('joined_at', { ascending: false });
-    },
 
     // ── Visits table ──────────────────────────────────────────
-    // Sin member_name: el nombre está en members, y quién la registró lo pone la base.
-    // Sin `court` (v3.4): nadie sabe en qué cancha fue, la cancha vive en la reserva del POS.
-    // ⚠️ La columna todavía tiene default '01', así que la base la sigue llenando: quitarlo es
-    // SQL de Edgar (docs/PROMPTS.md). Devuelve el id: lo que fue esta visita se busca por él.
-    logVisit(memberId) {
-      return sb.from('visits').insert({ member_id: memberId }).select('id').single();
-    },
+    // Las visitas se registran solo en el POS (v3.7). Aquí solo se leen las del socio.
     // Todas las visitas de un socio, contadas EN LA BASE (count, sin traer filas). Es el total
     // del historial y del nivel (Bronce…Leyenda); NO es la promoción, que es promocionDe.
     // Devuelve { data: número, error }: una lectura caída no es «0 visitas».
@@ -131,7 +114,7 @@
     // vigente_desde }, que PostgREST entrega como arreglo: `.single()` la vuelve objeto, y cero
     // filas es un error, no una regla vacía.
     // ⚠️ No es lo que le toca a un socio: un socio a medio ciclo conserva la regla con la que lo
-    // empezó. Su tarjeta, el panel y la visita registrada leen promocionDe → ciclo_actual.
+    // empezó. Su tarjeta lee promocionDe → ciclo_actual.
     // Si falla, la pantalla no promete números: dice que pregunten en recepción.
     reglaVigente() {
       return sb.rpc('regla_vigente').single();
@@ -168,20 +151,17 @@
     },
     // La línea que explica por qué el total y lo que cuenta difieren, o `null` si no difieren.
     // Las dos cifras y la fecha vienen de la base: `total` de contarVisitas (null si no se pudo
-    // leer), lo demás de promocionDe. Sin culpar a nadie: es la regla.
-    lineaConteo(total, promo, persona) {
-      const tu = persona === 'tu';
+    // leer), lo demás de promocionDe. Sin culpar a nadie: es la regla. Le habla al socio, de tú:
+    // la versión en tercera persona era del panel de recepción, que ya no existe (v3.7).
+    lineaConteo(total, promo) {
       if (!promo.participa) {
-        return tu
-          ? 'Tu promoción empieza a contar cuando tu cuenta quede registrada en la app. Tus visitas se guardan igual.'
-          : 'Aún no participa en la promoción: se dio de alta en el mostrador y no se ha registrado en la app. Sus visitas se guardan igual.';
+        return 'Tu promoción empieza a contar cuando tu cuenta quede registrada en la app. Tus visitas se guardan igual.';
       }
       const cuentan = promo.visitas_cuentan;
       if (total === null || cuentan === total) return null;
       const fecha = promo.vinculado_en ? new Date(promo.vinculado_en).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
       const antes = total - cuentan;
-      return (tu ? `Llevas ${total} visitas. Para la promoción cuentan ${cuentan}: las de desde que te registraste en la app`
-                 : `${total} visitas en total. Para la promoción cuentan ${cuentan}: las de desde que se registró en la app`)
+      return `Llevas ${total} visitas. Para la promoción cuentan ${cuentan}: las de desde que te registraste en la app`
         + (fecha ? `, el ${fecha}` : '') + `. ${antes === 1 ? 'La de antes queda' : `Las ${antes} de antes quedan`} en el historial.`;
     },
     getMemberVisits(memberId) {
@@ -191,44 +171,15 @@
         .order('visited_at', { ascending: false })
         .then(mapear(conNombre));
     },
-    getAllVisits() {
-      return sb.from('visits')
-        .select('*, members(name)')
-        .order('visited_at', { ascending: false })
-        .limit(500)
-        .then(mapear(conNombre));
-    },
-    // Sin deleteVisit, a propósito (Edgar, 30 de septiembre de 2026): una visita se borra solo
-    // desde el POS, por anular_visita, que deja registro en anulaciones. Cuando se quite la
-    // política de DELETE de visits, un borrado por la tabla dejaría de borrar sin decirlo.
 
     // ── Announcements table ───────────────────────────────────
+    // Solo se leen los que se ven. Crearlos, editarlos y borrarlos es del POS (Socios → Avisos).
     getAnnouncements() {
       return sb.from('announcements')
         .select('*')
         .eq('active', true)
         .or('expires_at.is.null,expires_at.gt.' + new Date().toISOString())
         .order('created_at', { ascending: false });
-    },
-    getAnnouncementsByIds(ids) {
-      return sb.from('announcements').select('id, title, type, event_date').in('id', ids);
-    },
-    createAnnouncement(data) {
-      return sb.from('announcements').insert(data);
-    },
-    deleteAnnouncement(id) {
-      return sb.from('announcements').delete().eq('id', id);
-    },
-    updateAnnouncement(id, data) {
-      return sb.from('announcements').update(data).eq('id', id);
-    },
-    async uploadAnnouncementImage(file) {
-      const ext  = file.name.split('.').pop();
-      const path = `ann-${Date.now()}.${ext}`;
-      const { error } = await sb.storage.from('announcements').upload(path, file, { upsert: true });
-      if (error) throw error;
-      const { data } = sb.storage.from('announcements').getPublicUrl(path);
-      return data.publicUrl;
     },
 
     // ── Signups table ─────────────────────────────────────────
@@ -246,12 +197,6 @@
     getMemberSignups(memberId) {
       return sb.from('signups').select('*, members(name)').eq('member_id', memberId)
         .order('signed_up_at', { ascending: false })
-        .then(mapear(conNombre));
-    },
-    getEventSignups(announcementId) {
-      return sb.from('signups').select('*, members(name)')
-        .eq('announcement_id', announcementId)
-        .order('signed_up_at')
         .then(mapear(conNombre));
     },
   };
