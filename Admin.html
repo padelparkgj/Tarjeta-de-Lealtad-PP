@@ -7,9 +7,29 @@
   <meta name="theme-color" content="#0e1d57" />
   <link rel="icon" href="icons/icon-192.png" />
   <!-- El panel de recepción se apagó en la v3.7 (7 de octubre de 2026): todo lo que hacía lo hace
-       el POS. Esta página no carga Supabase ni ningún script, y no pide sesión: solo dice a dónde
+       el POS. Esta página no carga Supabase ni ningún archivo de script, y no pide sesión: solo dice a dónde
        se fue el panel. Los estilos son los de la app (styles.css) más los de la tarjeta de abajo. -->
   <link rel="stylesheet" href="styles.css" />
+  <script>
+    // v3.7.1: lo que el panel dejó guardado en este aparato se borra al abrir esta página. Su
+    // sesión de personal (`pp-lealtad-recepcion-auth`, con las llaves auxiliares de supabase-js
+    // que llevan ese prefijo) serviría para entrar como personal desde aquí; y la bandera del PIN
+    // viejo. Por nombre, nunca todo: la sesión de la app de socios vive en el mismo almacén.
+    (function () {
+      var PREFIJO = 'pp-lealtad-recepcion-auth';
+      var SUELTAS = ['pp_gj_admin_auth_v1'];
+      [function () { return window.localStorage; }, function () { return window.sessionStorage; }].forEach(function (cual) {
+        try {
+          var s = cual(), quitar = [];
+          for (var i = 0; i < s.length; i++) {
+            var k = s.key(i);
+            if (k === PREFIJO || k.indexOf(PREFIJO + '-') === 0 || SUELTAS.indexOf(k) >= 0) quitar.push(k);
+          }
+          quitar.forEach(function (k) { s.removeItem(k); });
+        } catch (e) { /* sin almacenamiento, no hay nada que borrar */ }
+      });
+    })();
+  </script>
   <style>
     body {
       background:

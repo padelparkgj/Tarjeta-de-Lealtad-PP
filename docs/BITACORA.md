@@ -3,6 +3,34 @@
 Qué se hizo y qué se midió, con fecha. Las reglas vigentes están en `CLAUDE.md`; lo pendiente, en
 `docs/PROMPTS.md`. Las entradas anteriores a esta viven en los mensajes de commit y en `PRUEBAS.md`.
 
+## v3.7.1 · 7 de octubre de 2026 — la sesión del panel se borra del aparato
+
+**El porqué.** La v3.7 apagó el panel, pero lo que guardó en cada aparato se quedaba: su sesión de
+personal (`pp-lealtad-recepcion-auth`), con la que se podría entrar como personal desde ese aparato.
+Decisión de Edgar: que `Admin.html` la borre al abrirse.
+
+**El cambio.** Un script en línea en `Admin.html`, sin cargar Supabase ni ningún archivo: en
+`localStorage` y `sessionStorage` quita `pp-lealtad-recepcion-auth`, cualquier llave con ese prefijo
+seguido de `-` (las auxiliares de supabase-js) y `pp_gj_admin_auth_v1`, la bandera del PIN viejo. Son
+todas las que el panel escribía: `admin.jsx` de la v3.6 no tocaba otro almacén, y la app de socios
+usa `sb-<proyecto>-auth-token` y `pp_install_dismissed`. **Por nombre, nunca todo**, y sin fallar si
+no existen o si el almacén no se deja leer.
+
+**Medido** con Chrome por Playwright, **el mismo perfil de la prueba del caché** (el que terminó en
+`ppgj-v4`) y el mismo origen. Con la v3.6 servida, se entró al panel de verdad con la cuenta de
+personal y se puso la bandera del PIN; como sesión de la app de socios se puso su llave con un valor
+marcado —entrar de verdad a la app con una cuenta sin ficha llamaría a `vincular_socio`, que
+escribe—. Después, la v3.7.1 servida y `Admin.html` abierto:
+
+| | `localStorage` | `sessionStorage` |
+|---|---|---|
+| Antes | `pp-lealtad-recepcion-auth`, `pp_gj_admin_auth_v1`, `sb-mhnwbbfgrpysejuekeau-auth-token` | — |
+| Después, v3.7.1 | `sb-mhnwbbfgrpysejuekeau-auth-token`, con el mismo valor | — |
+| Después, v3.7 sin limpieza (el rojo) | las tres | — |
+
+0 errores en consola y ningún `<script>` con `src`. La sesión de prueba del panel se cerró en
+Supabase con su propio token después de cada corrida (`logout`, 204).
+
 ## v3.7 · 7 de octubre de 2026 — el panel se apaga
 
 **El porqué.** El 6 el panel se quedó por cuatro cosas que el POS no hacía. El POS las ganó en

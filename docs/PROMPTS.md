@@ -29,16 +29,14 @@ en `docs/BITACORA.md`.
 - ✅ ~~Apagar el panel~~: **apagado en la v3.7** (7 de octubre de 2026). Las cuatro cosas que el POS
   no hacía el 6 —la lista de socios y buscar por correo, el historial «Todo», las visitas una por
   una con su premio y los contadores, «Miembro desde» y el mes de cumpleaños— las ganó el POS en
-  `bfd4c98`. `Admin.html` es una página sin scripts que manda al POS. El inventario, en la bitácora.
-- 🕐 **La sesión de personal del panel sigue guardada en los aparatos que lo usaron**, en
-  `localStorage` con la llave `pp-lealtad-recepcion-auth` (y la bandera vieja del PIN,
-  `pp_gj_admin_auth_v1`, donde no se borró). Ya nada la lee: la página mínima no carga Supabase y
-  la app de socios usa la llave por defecto. No se limpió porque la página mínima no lleva scripts,
-  como se pidió. Si se quiere borrar, son dos `removeItem` por nombre en `Admin.html`; y lo que de
-  verdad la invalida es cerrar la sesión de esa cuenta en Supabase. Lo decide Edgar.
-- 🕐 **Los documentos del POS todavía hablan del panel en futuro**: su `CLAUDE.md` («El módulo
-  Socios reemplaza al panel de Admin.html, por etapas») y su `docs/PROMPTS.md § Dejar Admin.html`.
-  Son de otro repo y desde aquí solo se leen: se ponen al día en una sesión del POS.
+  `bfd4c98`. `Admin.html` es una página sin Supabase que manda al POS. El inventario, en la bitácora.
+- ✅ ~~La sesión de personal del panel seguía guardada en los aparatos que lo usaron~~: desde la
+  v3.7.1 (7 de octubre de 2026) `Admin.html` la borra al abrirse —`pp-lealtad-recepcion-auth` y sus
+  llaves con ese prefijo, y `pp_gj_admin_auth_v1`—, por nombre, sin tocar la sesión de la app de
+  socios. Medido en la bitácora. ⚠️ Solo en el aparato que vuelva a abrir `Admin.html`: uno que no
+  la abra nunca conserva la llave, y su token se renueva solo mientras alguien lo use.
+- ✅ ~~Los documentos del POS todavía hablaban del panel en futuro~~: puestos al día el 7 de octubre
+  de 2026, en su rama `rediseno-v4`.
 
 ## La cancha de una visita
 

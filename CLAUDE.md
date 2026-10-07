@@ -6,8 +6,10 @@ One single-page app, on the POS's Supabase backend:
 
 - `Landing Page.html` + `app.jsx` — member-facing app
 - `Admin.html` — **a static page, not an app** (v3.7, 7 Oct 2026): it says the reception panel
-  moved to the POS and links to `https://app-padel-park.vercel.app`. No Supabase, no script, no
-  session. `admin.jsx`, `admin.css`, `admin-manifest.json` and `icons/admin-*` are gone.
+  moved to the POS and links to `https://app-padel-park.vercel.app`. No Supabase, no script file, no
+  session. Its one inline script (v3.7.1) deletes what the panel left in the browser —its staff
+  session, `pp-lealtad-recepcion-auth*`, and the old PIN flag `pp_gj_admin_auth_v1`— **by name**,
+  never everything: the member app's session lives in the same storage. `admin.jsx`, `admin.css`, `admin-manifest.json` and `icons/admin-*` are gone.
 
 ## Versioning (IMPORTANT — do this on every change)
 
