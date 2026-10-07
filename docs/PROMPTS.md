@@ -5,15 +5,15 @@ en `docs/BITACORA.md`.
 
 ## Los torneos, fuera de la lealtad (v3.6)
 
-- 🕐 **Retirar de la base `tournaments`, `tournament_pairs` y `tournament_matches`.** Desde la v3.6
-  ninguna app las lee ni las escribe (búsqueda en `docs/BITACORA.md`), y desde la v3.7 el panel de
-  recepción ya no existe. **Conteos del 7 de octubre de 2026**, leídos por la API con
-  la cuenta de personal (`HEAD` con `count=exact`, sin escribir): **`tournaments` 1,
-  `tournament_pairs` 1, `tournament_matches` 0** —los mismos del 6—. El torneo es el del aviso
-  «Torneo» (`360e075a-…`); el POS los borra en cascada al borrar su aviso (`sonda-matches.mjs` del
-  POS). **El SQL lo escribe Claude en Cowork**, no se corre desde aquí. ⚠️ `politicas.mjs` del POS
-  mide las tres con un torneo de la lealtad sembrado (`torneo-lealtad.mjs`): retirarlas pide
-  quitarlas también de ese control, o bajará de 25 de 25.
+- ✅ ~~Retirar de la base `tournaments`, `tournament_pairs` y `tournament_matches`~~: **retiradas el 7
+  de octubre de 2026.** Edgar corrió en producción el SQL de Cowork, que las respaldó y las borró en ese
+  orden y sin cascade: respaldo **`tournaments` 1, `tournament_pairs` 1, `tournament_matches` 0**
+  —los conteos leídos el 6 y el 7—; las tres «borrada»; siguen 8 avisos y 2 inscripciones. El SQL y
+  el veredicto con el respaldo están en el POS (`docs/evidencia/migracion-retirar-torneos-socios-2026-10-07.sql`
+  y `veredicto-…csv`). Por la API, las tres contestan ahora `404 PGRST205` con cualquier cuenta, y
+  `politicas.mjs` del POS lo afirma (22 tablas con su regla, y las tres retiradas que no deben
+  existir). La app de socios publicada (v3.7.1), medida ese día: ninguna petición a las tres, ninguna
+  respuesta ≥ 400, ningún error en consola, y la inscripción a un aviso sigue leyendo `signups` (200).
 - **`signups` NO se retira**: es la inscripción a cualquier aviso con `allow_signup`, no solo a
   torneos, y la usan los avisos con inscripción («Clase muestra», tipo `precio`). El 7 de octubre de
   2026 tiene **2 filas, las dos de avisos de tipo torneo**; de **8 avisos**, 5 son torneo, 2 precio y
