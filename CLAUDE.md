@@ -1,5 +1,19 @@
 # Padel Park Gran Jardín — Tarjeta de Lealtad
 
+**Apagada (v3.8, 26 Oct 2026).** The member app moved to the POS:
+`https://app-padel-park.vercel.app/socios/` (card, announcements, bookings). `index.html` and
+`Landing Page.html` are now one minimal branded page that says «La app de Padel Park se cambió de
+dirección», unregisters any service worker, clears every cache and does
+`location.replace` to the new address (with a visible button; `<meta refresh>` for no-JS). They
+load no script file: `app.jsx`, `styles.css`, `supabase-client.js`, `config.js` and
+`tweaks-panel.jsx` stay in the repo but nothing loads them. `sw.js` is a teardown worker: on
+`activate` it deletes all caches, calls `registration.unregister()` and reloads the open windows,
+which then get the redirect from the network; it has no `fetch` handler. `manifest.json` was left
+as it was: a cross-origin `start_url` is discarded by the browser, and the current one lands on
+the redirect anyway. The GitHub Pages address is
+`https://padelparkgj.github.io/Tarjeta-de-Lealtad-PP/`. The site and the repo stay up; `ios-app/`
+and `Admin.html` were not touched. Everything below describes the app as it was until v3.7.
+
 Loyalty card PWA for a padel club. Plain React 18 (UMD build) + Babel
 standalone loaded via CDN `<script>` tags — no build step, no bundler.
 One single-page app, on the POS's Supabase backend:

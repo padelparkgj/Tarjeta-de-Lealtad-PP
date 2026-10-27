@@ -2,10 +2,72 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="refresh" content="0; url=Landing%20Page.html" />
-  <title>Padel Park Gran Jardín — Tarjeta de Lealtad</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Padel Park · La app se cambió de dirección</title>
+  <meta name="theme-color" content="#0e1d57" />
+  <meta name="robots" content="noindex" />
+  <link rel="icon" href="icons/icon-192.png" />
+  <!-- v3.8 (26 de octubre de 2026): esta app se apagó. La app de socios —tarjeta, avisos y
+       reservas— vive en https://app-padel-park.vercel.app/socios/. Esta página no carga React,
+       Supabase ni ningún archivo de script: limpia lo que la PWA vieja dejó en el aparato y manda
+       a la dirección nueva. Sin <link rel="manifest">, para que nadie la instale de nuevo. -->
+  <meta http-equiv="refresh" content="0; url=https://app-padel-park.vercel.app/socios/" />
+  <style>
+    :root { --navy: #0e1d57; --lime: #b8f24a; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      background: var(--navy); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      padding: 24px; text-align: center;
+      -webkit-font-smoothing: antialiased;
+    }
+    main { max-width: 420px; width: 100%; }
+    .logo {
+      width: 112px; height: 112px; border-radius: 50%; object-fit: cover;
+      margin: 0 auto 24px; display: block; border: 3px solid var(--lime);
+      background: #fff;
+    }
+    h1 { font-size: 1.6rem; line-height: 1.25; font-weight: 800; letter-spacing: -0.01em; margin-bottom: 12px; }
+    p { color: rgba(255,255,255,0.78); line-height: 1.5; margin-bottom: 28px; }
+    a.boton {
+      display: inline-block; background: var(--lime); color: var(--navy);
+      font-weight: 800; text-decoration: none; padding: 14px 26px;
+      border-radius: 999px; font-size: 1.05rem;
+    }
+    a.boton:active { transform: scale(0.98); }
+    small { display: block; margin-top: 20px; color: rgba(255,255,255,0.5); font-size: 0.8rem; word-break: break-all; }
+  </style>
 </head>
 <body>
-  <script>window.location.replace('Landing%20Page.html');</script>
+  <main>
+    <img class="logo" src="assets/logo-navy.jpg" alt="Padel Park Gran Jardín" />
+    <h1>La app de Padel Park se cambió de dirección</h1>
+    <p>Tu tarjeta de lealtad, los avisos y las reservas ahora están en la nueva app de socios. Si no te lleva en un momento, toca el botón.</p>
+    <a class="boton" href="https://app-padel-park.vercel.app/socios/">Ir a la nueva app</a>
+    <small>app-padel-park.vercel.app/socios/</small>
+  </main>
+  <!-- Al final del cuerpo: la página se pinta antes de que arranque la redirección, por si tarda o falla. -->
+  <script>
+    (function () {
+      var NUEVA = 'https://app-padel-park.vercel.app/socios/';
+      // Lo que el service worker viejo guardó: se borra y se da de baja. Son promesas que no
+      // detienen la redirección; sw.js hace lo mismo cuando el navegador lo actualiza.
+      try {
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function (regs) {
+            regs.forEach(function (r) { r.unregister(); });
+          }).catch(function () {});
+        }
+        if ('caches' in window) {
+          caches.keys().then(function (keys) {
+            keys.forEach(function (k) { caches.delete(k); });
+          }).catch(function () {});
+        }
+      } catch (e) { /* sin esas APIs no hay nada que limpiar */ }
+      window.location.replace(NUEVA);
+    })();
+  </script>
 </body>
 </html>
